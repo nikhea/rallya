@@ -334,3 +334,78 @@ func TestHTTPUploadCover(t *testing.T) {
 		t.Fatalf("oversize: got %d", w.Code)
 	}
 }
+
+func evUploadMulti(t *testing.T, f *eventFixture, path, email string, files map[string][]byte) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for name, content := range files {
+		part, err := mw.CreateFormFile("files", name)
+		if err != nil {
+			t.Fatalf("form: %v", err)
+		}
+		if _, err := part.Write(content); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	req := httptest.NewRequest("POST", path, &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+f.tokens[email])
+	w := httptest.NewRecorder()
+	f.router.ServeHTTP(w, req)
+	return w
+}
+
+func TestHTTPGalleryFlow(t *testing.T) {
+	f := newEventFixture(t)
+
+	w := evRequest(t, f, "POST", "/api/v1/orgs/acme/events", `{"title":"Gallery Fest"}`, "eowner@test.com")
+	var created eventdto.Event
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	png := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 100)...)
+	// Member multi-upload -> 403.
+	if w := evUploadMulti(t, f, "/api/v1/orgs/acme/events/"+created.Slug+"/images", "emember@test.com",
+		map[string][]byte{"a.png": png}); w.Code != http.StatusForbidden {
+		t.Fatalf("member upload: got %d", w.Code)
+	}
+	// Owner multi-upload -> 201 with metadata.
+	w = evUploadMulti(t, f, "/api/v1/orgs/acme/events/"+created.Slug+"/images", "eowner@test.com",
+		map[string][]byte{"a.png": png, "b.png": png})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("upload: got %d (%s)", w.Code, w.Body.String())
+	}
+	var page eventdto.ImagesPage
+	if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil || page.Total != 2 {
+		t.Fatalf("page: %+v %v", page, err)
+	}
+	for _, img := range page.Items {
+		if img.URL == "" || img.PublicID == "" {
+			t.Fatalf("missing fields: %+v", img)
+		}
+	}
+	// Auto-cover: event had none, first image cloned.
+	w = evRequest(t, f, "GET", "/api/v1/orgs/acme/events/"+created.Slug, "", "eowner@test.com")
+	var withCover eventdto.Event
+	if err := json.Unmarshal(w.Body.Bytes(), &withCover); err != nil || withCover.CoverURL == nil {
+		t.Fatalf("expected cloned cover: %+v %v", withCover, err)
+	}
+	// List as member -> 200.
+	w = evRequest(t, f, "GET", "/api/v1/orgs/acme/events/"+created.Slug+"/images", "", "emember@test.com")
+	var listed eventdto.ImagesPage
+	if err := json.Unmarshal(w.Body.Bytes(), &listed); err != nil || listed.Total != 2 {
+		t.Fatalf("list: %+v %v", listed, err)
+	}
+	// Stranger list -> 404.
+	if w := evRequest(t, f, "GET", "/api/v1/orgs/acme/events/"+created.Slug+"/images", "", "estranger@test.com"); w.Code != http.StatusNotFound {
+		t.Fatalf("stranger list: got %d", w.Code)
+	}
+	// Empty upload -> 400.
+	if w := evUploadMulti(t, f, "/api/v1/orgs/acme/events/"+created.Slug+"/images", "eowner@test.com", map[string][]byte{}); w.Code != http.StatusBadRequest {
+		t.Fatalf("empty: got %d", w.Code)
+	}
+}

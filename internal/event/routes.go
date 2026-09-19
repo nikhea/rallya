@@ -41,5 +41,7 @@ func RegisterRoutes(
 		orgs.POST("/:eventId/unpublish", iam.RequirePermission(e, iam.ObjEvent, iam.ActPublish), h.UnpublishEvent)
 		orgs.POST("/:eventId/cancel", iam.RequirePermission(e, iam.ObjEvent, iam.ActPublish), h.CancelEvent)
 		orgs.POST("/:eventId/cover", iam.RequirePermission(e, iam.ObjEvent, iam.ActUpdate), h.UploadCover)
+		orgs.POST("/:eventId/images", iam.RequirePermission(e, iam.ObjEvent, iam.ActUpdate), h.UploadGallery)
+		orgs.GET("/:eventId/images", iam.RequirePermission(e, iam.ObjEvent, iam.ActRead), h.ListImages)
 	}
 }

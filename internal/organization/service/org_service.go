@@ -38,6 +38,7 @@ type OrgService struct {
 	enqueuer jobs.Enqueuer
 	syncer   GroupSyncer
 	seeder   PolicySeeder
+	cleaner  AssetCleaner
 }
 
 // NewOrgService builds the service. users is required; enqueuer/syncer/
@@ -54,6 +55,9 @@ func (s *OrgService) SetGroupSyncer(g GroupSyncer) { s.syncer = g }
 
 // SetPolicySeeder wires IAM per-org policy seeding.
 func (s *OrgService) SetPolicySeeder(p PolicySeeder) { s.seeder = p }
+
+// SetAssetCleaner wires event asset cleanup on org delete.
+func (s *OrgService) SetAssetCleaner(a AssetCleaner) { s.cleaner = a }
 
 // ---------- organizations ----------
 
@@ -191,6 +195,9 @@ func (s *OrgService) DeleteOrg(userID uuid.UUID, ref string) error {
 	if err != nil {
 		return err
 	}
+	// Assets first (orphan rows self-heal; orphan files cost money),
+	// then rows cascade, then derived IAM state.
+	s.cleanAssets(o.ID)
 	if err := s.repo.DeleteOrg(nil, o.ID); err != nil {
 		return err
 	}
@@ -303,6 +310,16 @@ func (s *OrgService) seedRemove(orgID uuid.UUID) {
 		return
 	}
 	s.seeder.RemoveOrgPolicies(orgID)
+}
+
+// cleanAssets removes an org's stored event assets (best-effort pre-delete).
+func (s *OrgService) cleanAssets(orgID uuid.UUID) {
+	if s.cleaner == nil {
+		return
+	}
+	if err := s.cleaner.DeleteOrgAssets(orgID); err != nil {
+		slog.Error("org asset cleanup failed", "org", orgID, "error", err)
+	}
 }
 
 // sync propagates membership state to IAM (nil role = removal).

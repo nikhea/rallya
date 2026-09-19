@@ -56,6 +56,15 @@ parsed via `redis.ParseURL`), else the split vars `REDIS_ADDR` (default
 a fallback for provider-style deploys. Unreachable at boot is **non-fatal**: warns,
 leaves `RDB` nil, app runs without cache. `CloseRedis()` is nil-safe.
 
+## Cloudinary (`cloudinary.go`)
+
+Image-upload credentials for event covers (`CloudinaryConfig`): `CLOUDINARY_URL`
+(`cloudinary://key:secret@cloud`, preferred) or the split `CLOUD_NAME` /
+`CLOUD_API_KEY` / `CLOUD_API_SECRET`, plus `CLOUDINARY_UPLOAD_PRESET` for
+unsigned uploads. `CloudinaryEnabled()` is false unless a full URL or a
+complete key triple is present — the API then falls back to local-disk covers
+with a loud warn log. Values are never logged.
+
 ## Boot order (`cmd/api`)
 
 ```
@@ -91,4 +100,6 @@ REDIS_PASSWORD=
 REDIS_DB=0
 ALLOW_INSECURE_JWT=true     # local dev only, never prod
 SUPERADMIN_EMAILS=boss@example.com,ops@example.com  # platform superadmins (empty = none)
+CLOUDINARY_URL=cloudinary://key:secret@cloud  # or split CLOUD_NAME/CLOUD_API_KEY/CLOUD_API_SECRET
+CLOUDINARY_UPLOAD_PRESET=homz
 ```

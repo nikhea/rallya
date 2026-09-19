@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	authdto "github.com/nikhea/rallya/internal/auth/dto"
@@ -51,10 +50,7 @@ type orgFixture struct {
 
 func newOrgFixture(t *testing.T) *orgFixture {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
+	db := testutil.OpenTestDB(t)
 	if err := db.AutoMigrate(orgmodel.AllModels()...); err != nil {
 		t.Fatalf("migrate test db: %v", err)
 	}

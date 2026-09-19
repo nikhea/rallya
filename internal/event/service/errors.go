@@ -16,4 +16,5 @@ var (
 	ErrCoverTooLarge = errors.New("cover image exceeds 5MB")
 	ErrCoverType     = errors.New("cover must be jpeg, png, or webp")
 	ErrCoverRequired = errors.New("cover file is required")
+	ErrTooManyFiles  = errors.New("at most 10 files per upload")
 )

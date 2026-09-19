@@ -58,4 +58,4 @@ Tests: in-memory SQLite per suite. Full suite also passes under `-race`.
 
 Read the nearest `AGENTS.md` before touching a domain: `internal/auth/`,
 `internal/organization/`, `internal/iam/`, `internal/event/`,
-`internal/notification/`, `cmd/`.
+`internal/notification/`, `internal/media/`, `cmd/`.

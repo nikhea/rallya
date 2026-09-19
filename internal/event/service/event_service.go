@@ -15,6 +15,7 @@ import (
 
 	"github.com/nikhea/rallya/cmd/config"
 	"github.com/nikhea/rallya/internal/auth/token"
+	"github.com/nikhea/rallya/internal/event/cover"
 	eventdto "github.com/nikhea/rallya/internal/event/dto"
 	"github.com/nikhea/rallya/internal/event/model"
 	"github.com/nikhea/rallya/internal/event/repository"
@@ -23,9 +24,10 @@ import (
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 )
 
-// Cover size/type policy (Q11).
+// Cover size/type policy (Q11) and gallery limits.
 const (
-	maxCoverBytes = 5 << 20 // 5MB
+	maxCoverBytes   = 5 << 20 // 5MB
+	maxGalleryFiles = 10
 )
 
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -45,10 +47,10 @@ type OrgResolver interface {
 	NotifyTargets(orgID uuid.UUID) ([]orgdto.MemberNotify, error)
 }
 
-// CoverStorage persists cover images. Local disk for MVP;
-// swap the implementation for S3 later (URLs stay stable).
+// CoverStorage persists cover/gallery images (local disk or Cloudinary).
 type CoverStorage interface {
 	Save(orgID, eventID uuid.UUID, data io.Reader, ext string) (url string, err error)
+	SaveImage(orgID, eventID uuid.UUID, data io.Reader, ext string) (*cover.StoredImage, error)
 	Delete(url string) error
 }
 
@@ -411,7 +413,8 @@ func (s *EventService) transition(orgRef, eventRef string, from, to model.EventS
 	return toEvent(e), nil
 }
 
-// DeleteEvent hard-deletes an event (OWNER upstream) and its cover.
+// DeleteEvent hard-deletes an event (OWNER upstream) with its cover and
+// gallery assets (rows cascade in DDL; provider cleanup best-effort).
 func (s *EventService) DeleteEvent(orgRef, eventRef string) error {
 	orgID, err := s.orgs.ResolveOrgID(orgRef)
 	if err != nil {
@@ -421,17 +424,181 @@ func (s *EventService) DeleteEvent(orgRef, eventRef string) error {
 	if err != nil {
 		return err
 	}
-	cover := ""
-	if e.CoverURL != nil {
-		cover = *e.CoverURL
+	var assets []string
+	if e.CoverURL != nil && *e.CoverURL != "" {
+		assets = append(assets, *e.CoverURL)
+	}
+	if imgs, err := s.repo.ListImagesByEvent(e.ID); err == nil {
+		for _, img := range imgs {
+			assets = append(assets, img.URL)
+		}
 	}
 	if err := s.repo.DeleteEvent(nil, e.ID); err != nil {
 		return err
 	}
-	if cover != "" {
-		s.deleteCover(cover)
+	for _, url := range assets {
+		s.deleteCover(url)
 	}
 	return nil
+}
+
+// ---------- gallery ----------
+
+// GalleryUpload is one validated file for the gallery.
+type GalleryUpload struct {
+	Data        io.Reader
+	Size        int64
+	ContentType string
+}
+
+// AddGalleryImages uploads files, stores rows, and — when the event has no
+// cover yet — clones the first image as the cover photo. All-or-nothing:
+// uploaded assets are cleaned up if the row transaction fails.
+func (s *EventService) AddGalleryImages(orgRef, eventRef string, uploads []GalleryUpload) ([]eventdto.EventImage, error) {
+	if s.storage == nil {
+		return nil, ErrCoverRequired
+	}
+	if len(uploads) == 0 {
+		return nil, ErrCoverRequired
+	}
+	if len(uploads) > maxGalleryFiles {
+		return nil, ErrTooManyFiles
+	}
+	orgID, err := s.orgs.ResolveOrgID(orgRef)
+	if err != nil {
+		return nil, ErrOrgUnresolved
+	}
+	e, err := s.resolveEvent(orgID, eventRef)
+	if err != nil {
+		return nil, err
+	}
+	stagedUploads := make([]stagedUpload, 0, len(uploads))
+	for _, up := range uploads {
+		ext, err := checkCover(up.Size, up.ContentType)
+		if err != nil {
+			s.cleanupStaged(stagedUploads)
+			return nil, err
+		}
+		stored, err := s.storage.SaveImage(orgID, e.ID, up.Data, ext)
+		if err != nil {
+			s.cleanupStaged(stagedUploads)
+			return nil, err
+		}
+		stagedUploads = append(stagedUploads, stagedUpload{stored: stored, ext: ext})
+	}
+	rows := make([]model.EventImage, 0, len(stagedUploads))
+	for _, st := range stagedUploads {
+		rows = append(rows, model.EventImage{
+			EventID: e.ID, URL: st.stored.URL, PublicID: st.stored.PublicID,
+			Format: st.stored.Format, Bytes: st.stored.Bytes,
+			Width: st.stored.Width, Height: st.stored.Height,
+		})
+	}
+	coverCloned := e.CoverURL == nil || *e.CoverURL == ""
+	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		for i := range rows {
+			if err := s.repo.CreateImage(tx, &rows[i]); err != nil {
+				return err
+			}
+		}
+		if coverCloned {
+			url := rows[0].URL
+			e.CoverURL = &url
+			if err := s.repo.UpdateEvent(tx, e); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.cleanupStaged(stagedUploads)
+		return nil, err
+	}
+	out := make([]eventdto.EventImage, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, *toEventImage(r))
+	}
+	return out, nil
+}
+
+// stagedUpload pairs an uploaded asset with its validated extension
+// so failures can clean up provider-side files.
+type stagedUpload struct {
+	stored *cover.StoredImage
+	ext    string
+}
+
+// ListImages returns an event's gallery, oldest first.
+func (s *EventService) ListImages(orgRef, eventRef string) ([]eventdto.EventImage, error) {
+	orgID, err := s.orgs.ResolveOrgID(orgRef)
+	if err != nil {
+		return nil, ErrOrgUnresolved
+	}
+	e, err := s.resolveEvent(orgID, eventRef)
+	if err != nil {
+		return nil, err
+	}
+	imgs, err := s.repo.ListImagesByEvent(e.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]eventdto.EventImage, 0, len(imgs))
+	for _, img := range imgs {
+		out = append(out, *toEventImage(img))
+	}
+	return out, nil
+}
+
+// cleanupStaged deletes uploaded assets after a failed gallery transaction.
+func (s *EventService) cleanupStaged(staged []stagedUpload) {
+	for _, st := range staged {
+		s.deleteCover(st.stored.URL)
+	}
+}
+
+func toEventImage(img model.EventImage) *eventdto.EventImage {
+	return &eventdto.EventImage{
+		ID: img.ID.String(), URL: img.URL, PublicID: img.PublicID,
+		Format: img.Format, Bytes: img.Bytes, Width: img.Width, Height: img.Height,
+		CreatedAt: utils.FormatTime(img.CreatedAt),
+	}
+}
+
+// DeleteOrgAssets removes every stored asset of an org (covers + gallery).
+// Called by org delete after rows cascade; best-effort with warn logs.
+func (s *EventService) DeleteOrgAssets(orgID uuid.UUID) error {
+	urls, err := s.ListOrgAssets(orgID)
+	if err != nil {
+		return err
+	}
+	for _, url := range urls {
+		s.deleteCover(url)
+	}
+	return nil
+}
+
+// ListOrgAssets returns every stored asset URL of an org (covers + gallery).
+func (s *EventService) ListOrgAssets(orgID uuid.UUID) ([]string, error) {
+	es, _, err := s.repo.ListEvents(repository.EventFilter{
+		OrganizationID: &orgID, IncludeDrafts: true,
+	}, 100000, 0, "")
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, e := range es {
+		if e.CoverURL != nil && *e.CoverURL != "" {
+			out = append(out, *e.CoverURL)
+		}
+		imgs, err := s.repo.ListImagesByEvent(e.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, img := range imgs {
+			out = append(out, img.URL)
+		}
+	}
+	return out, nil
 }
 
 // ---------- covers ----------

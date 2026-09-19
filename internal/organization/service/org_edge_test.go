@@ -223,3 +223,33 @@ func TestUpdateMyPreferences(t *testing.T) {
 		t.Fatalf("targets: %+v %v", got, err)
 	}
 }
+
+type stubCleaner struct {
+	calls []uuid.UUID
+	err   error
+}
+
+func (s *stubCleaner) DeleteOrgAssets(orgID uuid.UUID) error {
+	s.calls = append(s.calls, orgID)
+	return s.err
+}
+
+func TestDeleteOrgCleansAssets(t *testing.T) {
+	f := newOrgFixture(t)
+	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
+	cleaner := &stubCleaner{}
+	f.svc.SetAssetCleaner(cleaner)
+	if err := f.svc.DeleteOrg(f.owner.ID, d.Slug); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if len(cleaner.calls) != 1 {
+		t.Fatalf("expected 1 cleanup call, got %+v", cleaner.calls)
+	}
+	// Cleaner failure never fails the delete.
+	d2, _ := f.svc.CreateOrg(f.owner.ID, "Beta", "", "")
+	bad := &stubCleaner{err: errors.New("boom")}
+	f.svc.SetAssetCleaner(bad)
+	if err := f.svc.DeleteOrg(f.owner.ID, d2.Slug); err != nil {
+		t.Fatalf("delete must survive cleaner failure: %v", err)
+	}
+}

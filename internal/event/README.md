@@ -52,10 +52,39 @@ new orgs seed at runtime via `SeedOrgPolicies`).
 
 `POST .../cover` (multipart `file`, `event:update`): 5MB cap enforced pre-read
 (`MaxBytesReader`), MIME **sniffed from bytes** (never the client header),
-jpeg/png/webp only, randomized names under `uploads/events/<orgID>/`, replace
-and delete clean up old files (best-effort, warn-logged). Served read-only at
-`/uploads/*`. Multi-instance note: local disk doesn't follow horizontal scaling —
-the S3 swap touches only `cover/` (URLs are already absolute paths).
+jpeg/png/webp only. Storage is selected at boot: **Cloudinary** when configured
+(`CLOUDINARY_URL` or key triple + `CLOUDINARY_UPLOAD_PRESET`, uploads to
+`rallya/events/<orgID>/`, public ID derived back from the secure URL on delete)
+else **local disk** (`uploads/events/<orgID>/`, read-only `/uploads` mount).
+Served URLs are absolute either way, so swapping backends touches only `cover/`.
+Replace/delete clean up old files (best-effort, warn-logged).
+
+Cloudinary access lives in the reusable `internal/media` package (generic
+upload/delete by public ID); `cover/` only sets event naming policy. Future
+uploads (avatars, galleries) should build on `internal/media` directly.
+
+## Gallery
+
+`POST .../images` (multipart `files[]`, up to 10, same validation as covers)
+stores one `event_images` row per file with provider metadata (URL, public ID,
+format, bytes, dimensions) and returns them. When the event has no cover yet,
+the **first image is cloned as the cover photo** (same asset, no re-upload).
+All-or-nothing: provider files uploaded before a row-transaction failure are
+cleaned up. `GET .../images` (member read) lists oldest-first. Event delete
+removes cover + gallery assets (best-effort) with rows cascading in DDL.
+
+`POST .../cover` (multipart `file`, `event:update`): 5MB cap enforced pre-read
+(`MaxBytesReader`), MIME **sniffed from bytes** (never the client header),
+jpeg/png/webp only. Storage is selected at boot: **Cloudinary** when configured
+(`CLOUDINARY_URL` or key triple + `CLOUDINARY_UPLOAD_PRESET`, uploads to
+`rallya/events/<orgID>/`, public ID derived back from the secure URL on delete)
+else **local disk** (`uploads/events/<orgID>/`, read-only `/uploads` mount).
+Served URLs are absolute either way, so swapping backends touches only `cover/`.
+Replace/delete clean up old files (best-effort, warn-logged).
+
+Cloudinary access lives in the reusable `internal/media` package (generic
+upload/delete by public ID); `cover/` only sets event naming policy. Future
+uploads (avatars, galleries) should build on `internal/media` directly.
 
 ## Announcements & opt-in
 

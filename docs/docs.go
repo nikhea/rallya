@@ -1520,6 +1520,142 @@ const docTemplate = `{
                 }
             }
         },
+        "/orgs/{id}/events/{eventId}/images": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "All uploaded images with provider metadata, oldest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "List event gallery",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ImagesPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Multipart files[] (up to 10, jpeg/png/webp, 5MB each, content-sniffed). When the event has no cover yet, the first image becomes the cover.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Upload gallery images",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "file"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "Image files (repeat field per file)",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ImagesPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
         "/orgs/{id}/events/{eventId}/publish": {
             "post": {
                 "security": [
@@ -2552,6 +2688,43 @@ const docTemplate = `{
                 }
             }
         },
+        "eventdto.EventImage": {
+            "type": "object",
+            "properties": {
+                "bytes": {
+                    "type": "integer",
+                    "example": 204800
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "format": {
+                    "type": "string",
+                    "example": "png"
+                },
+                "height": {
+                    "type": "integer",
+                    "example": 800
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5e6f7081-9203-1b2c-3d4e-5f60718293a4"
+                },
+                "publicId": {
+                    "type": "string",
+                    "example": "rallya/events/acme/ev-ab12"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://res.cloudinary.com/demo/image/upload/v1/rallya/events/acme/ev-ab12.png"
+                },
+                "width": {
+                    "type": "integer",
+                    "example": 1200
+                }
+            }
+        },
         "eventdto.EventsPage": {
             "type": "object",
             "properties": {
@@ -2564,6 +2737,21 @@ const docTemplate = `{
                 "total": {
                     "type": "integer",
                     "example": 2
+                }
+            }
+        },
+        "eventdto.ImagesPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/eventdto.EventImage"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 3
                 }
             }
         },

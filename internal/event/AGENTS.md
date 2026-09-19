@@ -14,12 +14,11 @@ covers, opt-in announcements. Consumes org via `OrgResolver` (declared in
   dates allowed; normalize to UTC. Capacity nullable = unlimited, unenforced
   until ticketing.
 - Covers: 5MB cap pre-read (`MaxBytesReader`), MIME **sniffed from bytes**
-  (`http.DetectContentType`), never the client header; jpeg/png/webp only;
-  random names under `uploads/events/<orgID>/`; replace/delete clean up
-  best-effort. URLs stay stable so an S3 swap touches only `cover/`.
-- Publish enqueues one `send_event_published_email` per opted-in member **in
-  the same tx** as the status flip. Preference lives on memberships
-  (`notify_events`, default TRUE).
+  (`http.DetectContentType`), never the client header; jpeg/png/webp only.
+  Storage selected at boot: Cloudinary when configured (see `cmd/config`
+  Cloudinary section), else local `uploads/events/<orgID>/` with read-only
+  `/uploads` mount. Served URLs stay absolute so backend swaps touch only
+  `cover/`. Replace/delete clean up best-effort.
 - Listing: public `GET /events` (published only); org listing adds drafts for
   members. Filters (`org`, `from`/`to` RFC3339, `q`, `status`), `sort=starts|created`,
   page/perPage (20/max 100). Bad filter values 400, never silently ignored.

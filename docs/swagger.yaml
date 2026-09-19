@@ -259,6 +259,33 @@ definitions:
       venue:
         type: string
     type: object
+  eventdto.EventImage:
+    properties:
+      bytes:
+        example: 204800
+        type: integer
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      format:
+        example: png
+        type: string
+      height:
+        example: 800
+        type: integer
+      id:
+        example: 5e6f7081-9203-1b2c-3d4e-5f60718293a4
+        type: string
+      publicId:
+        example: rallya/events/acme/ev-ab12
+        type: string
+      url:
+        example: https://res.cloudinary.com/demo/image/upload/v1/rallya/events/acme/ev-ab12.png
+        type: string
+      width:
+        example: 1200
+        type: integer
+    type: object
   eventdto.EventsPage:
     properties:
       items:
@@ -267,6 +294,16 @@ definitions:
         type: array
       total:
         example: 2
+        type: integer
+    type: object
+  eventdto.ImagesPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/eventdto.EventImage'
+        type: array
+      total:
+        example: 3
         type: integer
     type: object
   eventdto.MessageAlias:
@@ -1430,6 +1467,96 @@ paths:
       security:
       - BearerAuth: []
       summary: Upload event cover
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/images:
+    get:
+      description: All uploaded images with provider metadata, oldest first.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.ImagesPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List event gallery
+      tags:
+      - events
+    post:
+      consumes:
+      - multipart/form-data
+      description: Multipart files[] (up to 10, jpeg/png/webp, 5MB each, content-sniffed).
+        When the event has no cover yet, the first image becomes the cover.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - collectionFormat: multi
+        description: Image files (repeat field per file)
+        in: formData
+        items:
+          type: file
+        name: files
+        required: true
+        type: array
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/eventdto.ImagesPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Upload gallery images
       tags:
       - events
   /orgs/{id}/events/{eventId}/publish:

@@ -4,5 +4,6 @@ package model
 func AllModels() []any {
 	return []any{
 		&Event{},
+		&EventImage{},
 	}
 }

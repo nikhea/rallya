@@ -58,6 +58,24 @@ type EventsPage struct {
 	Total int64   `json:"total" example:"2"`
 }
 
+// EventImage is one gallery file with provider metadata.
+type EventImage struct {
+	ID        string `json:"id" example:"5e6f7081-9203-1b2c-3d4e-5f60718293a4"`
+	URL       string `json:"url" example:"https://res.cloudinary.com/demo/image/upload/v1/rallya/events/acme/ev-ab12.png"`
+	PublicID  string `json:"publicId" example:"rallya/events/acme/ev-ab12"`
+	Format    string `json:"format,omitempty" example:"png"`
+	Bytes     int    `json:"bytes" example:"204800"`
+	Width     int    `json:"width,omitempty" example:"1200"`
+	Height    int    `json:"height,omitempty" example:"800"`
+	CreatedAt string `json:"createdAt" example:"2026-09-19T12:00:00Z"`
+}
+
+// ImagesPage lists gallery images.
+type ImagesPage struct {
+	Items []EventImage `json:"items"`
+	Total int64        `json:"total" example:"3"`
+}
+
 // Message is a generic ack response.
 type Message struct {
 	Message string `json:"message" example:"Event published"`

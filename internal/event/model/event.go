@@ -66,3 +66,29 @@ func (e *Event) BeforeCreate(_ *gorm.DB) error {
 
 // Published reports public visibility.
 func (e *Event) Published() bool { return e.Status == EventStatusPublished }
+
+// EventImage is one gallery file with its provider metadata.
+type EventImage struct {
+	ID uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+
+	EventID uuid.UUID `gorm:"type:uuid;index;not null" json:"eventId"`
+
+	URL      string `gorm:"type:text;not null" json:"url"`
+	PublicID string `gorm:"type:text;not null" json:"publicId"`
+
+	Format string `gorm:"size:20" json:"format,omitempty"`
+	Bytes  int    `gorm:"not null;default:0" json:"bytes"`
+	Width  int    `gorm:"not null;default:0" json:"width"`
+	Height int    `gorm:"not null;default:0" json:"height"`
+
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func (EventImage) TableName() string { return "event_images" }
+
+func (e *EventImage) BeforeCreate(_ *gorm.DB) error {
+	if e.ID == uuid.Nil {
+		e.ID = uuid.New()
+	}
+	return nil
+}

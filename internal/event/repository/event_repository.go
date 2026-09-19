@@ -67,6 +67,20 @@ func (r *EventRepository) DeleteEvent(db *gorm.DB, id uuid.UUID) error {
 	return dbOr(r, db).Delete(&model.Event{}, "id = ?", id).Error
 }
 
+// CreateImage inserts a gallery row.
+func (r *EventRepository) CreateImage(db *gorm.DB, img *model.EventImage) error {
+	return dbOr(r, db).Create(img).Error
+}
+
+// ListImagesByEvent returns an event's gallery, oldest first.
+func (r *EventRepository) ListImagesByEvent(eventID uuid.UUID) ([]model.EventImage, error) {
+	var out []model.EventImage
+	if err := r.db.Order("created_at ASC").Find(&out, "event_id = ?", eventID).Error; err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ListEvents returns paginated events honoring the filter.
 func (r *EventRepository) ListEvents(f EventFilter, limit, offset int, sort string) ([]model.Event, int64, error) {
 	var out []model.Event

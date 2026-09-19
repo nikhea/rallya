@@ -135,9 +135,17 @@ func main() {
 		eventRepo := eventrepository.NewEventRepository(config.DB)
 		eventSvc := eventservice.NewEventService(eventRepo, orgSvc)
 		eventSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
-		eventSvc.SetCoverStorage(cover.NewLocal("./uploads"))
+		if cld, err := cover.NewCloudinary(); err != nil {
+			slog.Warn("Cloudinary unconfigured, covers stay on local disk", "error", err)
+			eventSvc.SetCoverStorage(cover.NewLocal("./uploads"))
+		} else {
+			slog.Info("Cover storage: Cloudinary")
+			eventSvc.SetCoverStorage(cld)
+		}
 		eventHandler := eventhandler.NewHandler(eventSvc)
 		event.RegisterRoutes(api, eventHandler, authRepo, orgRepo, enforcer)
+		// Org delete cleans event assets via the event seam (rows cascade).
+		orgSvc.SetAssetCleaner(eventSvc)
 
 		// Cover images + uploads served read-only (local disk for MVP).
 		if err := os.MkdirAll("./uploads", 0o755); err != nil {

@@ -315,6 +315,89 @@ func (h *Handler) UploadCover(c *gin.Context) {
 	c.JSON(http.StatusOK, e)
 }
 
+// UploadGallery POST /api/v1/orgs/:id/events/:eventId/images (ADMIN+: event:update).
+//
+// @Summary		Upload gallery images
+// @Description	Multipart files[] (up to 10, jpeg/png/webp, 5MB each, content-sniffed). When the event has no cover yet, the first image becomes the cover.
+// @Tags			events
+// @Accept			multipart/form-data
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id		path		string	true	"Org UUID or slug"
+// @Param			eventId	path		string	true	"Event UUID or slug"
+// @Param			files	formData		[]file	true	"Image files (repeat field per file)"	collectionFormat(multi)
+// @Success		201		{object}	eventdto.ImagesPage
+// @Failure		400		{object}	eventdto.ErrorAlias
+// @Failure		401		{object}	eventdto.ErrorAlias
+// @Failure		403		{object}	eventdto.ErrorAlias
+// @Failure		404		{object}	eventdto.ErrorAlias
+// @Router			/orgs/{id}/events/{eventId}/images [post]
+func (h *Handler) UploadGallery(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, (10*(5<<20))+1024)
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "files are required"})
+		return
+	}
+	files := form.File["files"]
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "files are required"})
+		return
+	}
+	uploads := make([]service.GalleryUpload, 0, len(files))
+	closers := make([]io.Closer, 0, len(files))
+	defer func() {
+		for _, cl := range closers {
+			_ = cl.Close()
+		}
+	}()
+	for _, fh := range files {
+		src, err := fh.Open()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot read file"})
+			return
+		}
+		closers = append(closers, src)
+		head := make([]byte, 512)
+		n, _ := io.ReadFull(src, head)
+		mime := http.DetectContentType(head[:n])
+		if _, err := src.Seek(0, io.SeekStart); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot read file"})
+			return
+		}
+		uploads = append(uploads, service.GalleryUpload{Data: src, Size: fh.Size, ContentType: mime})
+	}
+	images, err := h.svc.AddGalleryImages(orgRef(c), c.Param("eventId"), uploads)
+	if err != nil {
+		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, eventdto.ImagesPage{Items: images, Total: int64(len(images))})
+}
+
+// ListImages GET /api/v1/orgs/:id/events/:eventId/images (MEMBER+: event:read).
+//
+// @Summary		List event gallery
+// @Description	All uploaded images with provider metadata, oldest first.
+// @Tags			events
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id		path		string	true	"Org UUID or slug"
+// @Param			eventId	path		string	true	"Event UUID or slug"
+// @Success		200		{object}	eventdto.ImagesPage
+// @Failure		401		{object}	eventdto.ErrorAlias
+// @Failure		403		{object}	eventdto.ErrorAlias
+// @Failure		404		{object}	eventdto.ErrorAlias
+// @Router			/orgs/{id}/events/{eventId}/images [get]
+func (h *Handler) ListImages(c *gin.Context) {
+	images, err := h.svc.ListImages(orgRef(c), c.Param("eventId"))
+	if err != nil {
+		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, eventdto.ImagesPage{Items: images, Total: int64(len(images))})
+}
+
 // ListPublicEvents GET /api/v1/events (published only, public).
 //
 // @Summary		List published events
