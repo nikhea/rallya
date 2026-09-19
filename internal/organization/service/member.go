@@ -8,24 +8,15 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/nikhea/rallya/internal/auth/model"
+	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	orgutils "github.com/nikhea/rallya/internal/organization/utils"
 )
 
 // ---------- members ----------
 
-// MemberView joins a membership with identity display data.
-type MemberView struct {
-	UserID        uuid.UUID           `json:"userId"`
-	Email         string              `json:"email"`
-	Name          string              `json:"name"`
-	EmailVerified bool                `json:"emailVerified"`
-	Role          orgmodel.MemberRole `json:"role"`
-	JoinedAt      time.Time           `json:"joinedAt"`
-}
-
-// ListMembers returns member views (MEMBER+).
-func (s *OrgService) ListMembers(userID uuid.UUID, ref string, limit, offset int) ([]MemberView, int64, error) {
+// ListMembers returns members (MEMBER+).
+func (s *OrgService) ListMembers(userID uuid.UUID, ref string, limit, offset int) ([]orgdto.Member, int64, error) {
 	o, _, err := s.requireRole(userID, ref, orgmodel.MemberRoleMember)
 	if err != nil {
 		return nil, 0, err
@@ -34,23 +25,20 @@ func (s *OrgService) ListMembers(userID uuid.UUID, ref string, limit, offset int
 	if err != nil {
 		return nil, 0, err
 	}
-	out := make([]MemberView, 0, len(ms))
+	out := make([]orgdto.Member, 0, len(ms))
 	for _, m := range ms {
 		u, err := s.users.GetUserByID(m.UserID)
 		if err != nil {
 			continue
 		}
-		out = append(out, MemberView{
-			UserID: u.ID, Email: u.Email, Name: orgutils.DisplayNameOf(u),
-			EmailVerified: u.EmailVerified, Role: m.Role, JoinedAt: m.CreatedAt,
-		})
+		out = append(out, *toMember(u, m.Role, m.CreatedAt))
 	}
 	return out, total, nil
 }
 
 // AddMember adds a registered user directly (ADMIN+; granted role must not
 // exceed the grantor's).
-func (s *OrgService) AddMember(grantorID uuid.UUID, ref, email string, role orgmodel.MemberRole) (*MemberView, error) {
+func (s *OrgService) AddMember(grantorID uuid.UUID, ref, email string, role orgmodel.MemberRole) (*orgdto.Member, error) {
 	o, g, err := s.requireRole(grantorID, ref, orgmodel.MemberRoleAdmin)
 	if err != nil {
 		return nil, err
@@ -81,14 +69,12 @@ func (s *OrgService) AddMember(grantorID uuid.UUID, ref, email string, role orgm
 		return nil, err
 	}
 	s.sync(target.ID, o.ID, &role)
-	return &MemberView{
-		UserID: target.ID, Email: target.Email, Name: orgutils.DisplayNameOf(target),
-		EmailVerified: target.EmailVerified, Role: role, JoinedAt: m.CreatedAt,
-	}, nil
+	m.Role = role
+	return toMember(target, m.Role, m.CreatedAt), nil
 }
 
 // UpdateMemberRole changes a member's role (OWNER only, last-owner guard).
-func (s *OrgService) UpdateMemberRole(grantorID uuid.UUID, ref string, targetID uuid.UUID, role orgmodel.MemberRole) (*MemberView, error) {
+func (s *OrgService) UpdateMemberRole(grantorID uuid.UUID, ref string, targetID uuid.UUID, role orgmodel.MemberRole) (*orgdto.Member, error) {
 	o, _, err := s.requireRole(grantorID, ref, orgmodel.MemberRoleOwner)
 	if err != nil {
 		return nil, err
@@ -114,11 +100,10 @@ func (s *OrgService) UpdateMemberRole(grantorID uuid.UUID, ref string, targetID 
 	}
 	s.sync(targetID, o.ID, &role)
 	u, _ := s.users.GetUserByID(targetID)
-	view := &MemberView{UserID: targetID, Role: role, JoinedAt: m.CreatedAt}
-	if u != nil {
-		view.Email, view.Name, view.EmailVerified = u.Email, orgutils.DisplayNameOf(u), u.EmailVerified
+	if u == nil {
+		u = &model.User{ID: targetID}
 	}
-	return view, nil
+	return toMember(u, role, m.CreatedAt), nil
 }
 
 // RemoveMember removes a member or lets one leave. ADMIN+ may remove
@@ -155,4 +140,13 @@ func (s *OrgService) RemoveMember(grantorID uuid.UUID, ref string, targetID uuid
 	}
 	s.sync(targetID, o.ID, nil)
 	return nil
+}
+
+// toMember maps identity + membership rows onto the wire shape.
+func toMember(u *model.User, role orgmodel.MemberRole, joinedAt time.Time) *orgdto.Member {
+	return &orgdto.Member{
+		UserID: u.ID.String(), Email: u.Email, Name: orgutils.DisplayNameOf(u),
+		EmailVerified: u.EmailVerified, Role: string(role),
+		JoinedAt: orgutils.FormatTime(joinedAt),
+	}
 }

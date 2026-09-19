@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/nikhea/rallya/internal/auth/model"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
@@ -29,7 +31,7 @@ func TestUpdateOrgSlugConflict(t *testing.T) {
 func TestInviteListAndRevoke(t *testing.T) {
 	f := newOrgFixture(t)
 	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
-	slug := d.Organization.Slug
+	slug := d.Slug
 
 	if err := f.svc.InviteMember(f.owner.ID, slug, "a@test.com", orgmodel.MemberRoleMember); err != nil {
 		t.Fatalf("invite a: %v", err)
@@ -46,7 +48,11 @@ func TestInviteListAndRevoke(t *testing.T) {
 		t.Fatalf("expected ErrOrgNotFound, got %v", err)
 	}
 	// Revoke one; accept-after-revoke fails.
-	if err := f.svc.RevokeInvite(f.owner.ID, slug, invites[0].ID); err != nil {
+	inviteID, err := uuid.Parse(invites[0].ID)
+	if err != nil {
+		t.Fatalf("parse invite id: %v", err)
+	}
+	if err := f.svc.RevokeInvite(f.owner.ID, slug, inviteID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 	second := &model.User{Email: invites[0].Email, EmailVerified: true, Status: model.UserStatusActive}
@@ -88,7 +94,7 @@ func TestAddMemberInactiveUser(t *testing.T) {
 	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
 	inactive := &model.User{Email: "off@test.com", EmailVerified: true, Status: model.UserStatusInactive}
 	f.users.Add(inactive)
-	if _, err := f.svc.AddMember(f.owner.ID, d.Organization.Slug, "off@test.com", orgmodel.MemberRoleMember); !errors.Is(err, service.ErrUserNotFound) {
+	if _, err := f.svc.AddMember(f.owner.ID, d.Slug, "off@test.com", orgmodel.MemberRoleMember); !errors.Is(err, service.ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }
@@ -96,7 +102,7 @@ func TestAddMemberInactiveUser(t *testing.T) {
 func TestAcceptIdempotentForMembers(t *testing.T) {
 	f := newOrgFixture(t)
 	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
-	slug := d.Organization.Slug
+	slug := d.Slug
 
 	if err := f.svc.InviteMember(f.owner.ID, slug, f.member.Email, orgmodel.MemberRoleMember); err != nil {
 		t.Fatalf("invite: %v", err)
@@ -142,7 +148,7 @@ func TestSyncerErrorToleratedAndRepair(t *testing.T) {
 func TestRemoveNonMember(t *testing.T) {
 	f := newOrgFixture(t)
 	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
-	if err := f.svc.RemoveMember(f.owner.ID, d.Organization.Slug, f.stranger.ID); !errors.Is(err, service.ErrOrgNotFound) {
+	if err := f.svc.RemoveMember(f.owner.ID, d.Slug, f.stranger.ID); !errors.Is(err, service.ErrOrgNotFound) {
 		t.Fatalf("expected ErrOrgNotFound, got %v", err)
 	}
 }
@@ -160,7 +166,7 @@ func TestAutoSlugUniqueness(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create %d: %v", i, err)
 		}
-		slugs = append(slugs, d.Organization.Slug)
+		slugs = append(slugs, d.Slug)
 	}
 	want := []string{"acme-inc", "acme-inc-2", "acme-inc-3"}
 	for i := range want {
@@ -170,11 +176,11 @@ func TestAutoSlugUniqueness(t *testing.T) {
 	}
 	// Names with no slug-safe characters fall back to org/org-2.
 	d1, err := f.svc.CreateOrg(f.owner.ID, "!!!", "", "")
-	if err != nil || d1.Organization.Slug != "org" {
+	if err != nil || d1.Slug != "org" {
 		t.Fatalf("fallback slug: %+v %v", d1, err)
 	}
 	d2, err := f.svc.CreateOrg(f.owner.ID, "???", "", "")
-	if err != nil || d2.Organization.Slug != "org-2" {
+	if err != nil || d2.Slug != "org-2" {
 		t.Fatalf("fallback slug 2: %+v %v", d2, err)
 	}
 	// Explicit duplicate still conflicts (no silent rename).

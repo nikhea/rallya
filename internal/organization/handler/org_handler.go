@@ -53,7 +53,7 @@ func (h *Handler) CreateOrg(c *gin.Context) {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, toOrg(detail.Organization, detail.Role))
+	c.JSON(http.StatusCreated, detail)
 }
 
 // ListMyOrgs GET /api/v1/orgs.
@@ -103,7 +103,7 @@ func (h *Handler) GetOrg(c *gin.Context) {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, toOrg(detail.Organization, detail.Role))
+	c.JSON(http.StatusOK, detail)
 }
 
 // UpdateOrg PATCH /api/v1/orgs/:id (ADMIN+).
@@ -135,7 +135,7 @@ func (h *Handler) UpdateOrg(c *gin.Context) {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, toOrg(detail.Organization, detail.Role))
+	c.JSON(http.StatusOK, detail)
 }
 
 // DeleteOrg DELETE /api/v1/orgs/:id (OWNER).
@@ -182,11 +182,7 @@ func (h *Handler) ListMembers(c *gin.Context) {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	items := make([]orgdto.Member, 0, len(members))
-	for _, m := range members {
-		items = append(items, toMember(m))
-	}
-	c.JSON(http.StatusOK, orgdto.MembersPage{Items: items, Total: total})
+	c.JSON(http.StatusOK, orgdto.MembersPage{Items: members, Total: total})
 }
 
 // AddMember POST /api/v1/orgs/:id/members (ADMIN+, role within grantor's).
@@ -218,7 +214,7 @@ func (h *Handler) AddMember(c *gin.Context) {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, toMember(*m))
+	c.JSON(http.StatusCreated, m)
 }
 
 // UpdateMemberRole PATCH /api/v1/orgs/:id/members/:userId (OWNER, last-owner guard).
@@ -256,7 +252,7 @@ func (h *Handler) UpdateMemberRole(c *gin.Context) {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, toMember(*m))
+	c.JSON(http.StatusOK, m)
 }
 
 // RemoveMember DELETE /api/v1/orgs/:id/members/:userId (MEMBER+ route,
@@ -343,11 +339,7 @@ func (h *Handler) ListInvites(c *gin.Context) {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	items := make([]orgdto.Invite, 0, len(invites))
-	for _, in := range invites {
-		items = append(items, toInvite(in))
-	}
-	c.JSON(http.StatusOK, orgdto.InvitesPage{Items: items, Total: total})
+	c.JSON(http.StatusOK, orgdto.InvitesPage{Items: invites, Total: total})
 }
 
 // RevokeInvite DELETE /api/v1/orgs/:id/invites/:inviteId (ADMIN+).
@@ -402,7 +394,7 @@ func (h *Handler) AcceptInvite(c *gin.Context) {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, toOrg(detail.Organization, detail.Role))
+	c.JSON(http.StatusOK, detail)
 }
 
 // DeclineInvite POST /api/v1/orgs/invites/decline ("reject" path).
@@ -454,29 +446,6 @@ func orgErrorStatus(err error) int {
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
-	}
-}
-
-func toOrg(o model.Organization, role model.MemberRole) orgdto.Org {
-	return orgdto.Org{
-		ID: o.ID.String(), Name: o.Name, Slug: o.Slug, LogoURL: o.LogoURL,
-		Role: string(role), CreatedAt: o.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-	}
-}
-
-func toMember(m service.MemberView) orgdto.Member {
-	return orgdto.Member{
-		UserID: m.UserID.String(), Email: m.Email, Name: m.Name,
-		EmailVerified: m.EmailVerified, Role: string(m.Role),
-		JoinedAt: m.JoinedAt.UTC().Format("2006-01-02T15:04:05Z"),
-	}
-}
-
-func toInvite(in model.Invite) orgdto.Invite {
-	return orgdto.Invite{
-		ID: in.ID.String(), Email: in.Email, Role: string(in.Role),
-		ExpiresAt: in.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z"),
-		CreatedAt: in.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
 }
 

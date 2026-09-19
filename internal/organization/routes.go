@@ -1,36 +1,39 @@
 package organization
 
 import (
+	"github.com/casbin/casbin/v3"
 	"github.com/gin-gonic/gin"
 
 	authhandler "github.com/nikhea/rallya/internal/auth/handler"
 	authrepo "github.com/nikhea/rallya/internal/auth/repository"
+	"github.com/nikhea/rallya/internal/iam"
 	"github.com/nikhea/rallya/internal/organization/handler"
-	"github.com/nikhea/rallya/internal/organization/model"
 	"github.com/nikhea/rallya/internal/organization/repository"
 )
 
 // RegisterRoutes wires the Organization HTTP endpoints. All routes require
-// auth; :id-scoped routes additionally require org membership with role
-// guards. Finer rules (last-owner, grant hierarchy) live in service.
+// auth; :id-scoped routes require org membership (stealth 404s) plus Casbin
+// permission gates. Finer rules (last-owner, grant hierarchy) live in service.
+// DELETE member stays at membership level: the service allows self-leave for
+// any role while restricting removals of others by hierarchy.
 //
 //	POST /api/v1/orgs                                    (auth)
 //	GET  /api/v1/orgs                                    (auth)
-//	GET  /api/v1/orgs/:id               (MEMBER+)
-//	PATCH /api/v1/orgs/:id              (ADMIN+)
-//	DELETE /api/v1/orgs/:id             (OWNER)
-//	GET  /api/v1/orgs/:id/members       (MEMBER+)
-//	POST /api/v1/orgs/:id/members       (ADMIN+)
-//	PATCH /api/v1/orgs/:id/members/:userId  (OWNER)
-//	DELETE /api/v1/orgs/:id/members/:userId (MEMBER+; service enforces hierarchy)
-//	POST /api/v1/orgs/:id/invites       (ADMIN+)
-//	GET  /api/v1/orgs/:id/invites       (ADMIN+)
-//	DELETE /api/v1/orgs/:id/invites/:inviteId (ADMIN+)
+//	GET  /api/v1/orgs/:id               (org,read)
+//	PATCH /api/v1/orgs/:id              (org,update)
+//	DELETE /api/v1/orgs/:id             (org,delete)
+//	GET  /api/v1/orgs/:id/members       (member,read)
+//	POST /api/v1/orgs/:id/members       (member,create)
+//	PATCH /api/v1/orgs/:id/members/:userId  (member,update)
+//	DELETE /api/v1/orgs/:id/members/:userId (service rules)
+//	POST /api/v1/orgs/:id/invites       (invite,create)
+//	GET  /api/v1/orgs/:id/invites       (invite,read)
+//	DELETE /api/v1/orgs/:id/invites/:inviteId (invite,delete)
 //	POST /api/v1/orgs/invites/accept    (auth)
 //	POST /api/v1/orgs/invites/decline   (auth)
 //
 // :id accepts an org UUID or slug.
-func RegisterRoutes(g *gin.RouterGroup, h *handler.Handler, repo *repository.OrgRepository, authRepo *authrepo.AuthRepository) {
+func RegisterRoutes(g *gin.RouterGroup, h *handler.Handler, repo *repository.OrgRepository, authRepo *authrepo.AuthRepository, e *casbin.Enforcer) {
 	g.Use(authhandler.RequireAuth(authRepo))
 
 	g.POST("", h.CreateOrg)
@@ -41,27 +44,18 @@ func RegisterRoutes(g *gin.RouterGroup, h *handler.Handler, repo *repository.Org
 	scoped := g.Group("/:id")
 	scoped.Use(handler.RequireOrgContext(repo))
 	{
-		scoped.GET("", h.GetOrg)
-		scoped.GET("/members", h.ListMembers)
-		// RemoveMember lives at member level: the service allows self-leave
-		// for any role and restricts removing others by hierarchy.
+		scoped.GET("", iam.RequirePermission(e, iam.ObjOrg, iam.ActRead), h.GetOrg)
+		scoped.GET("/members", iam.RequirePermission(e, iam.ObjMember, iam.ActRead), h.ListMembers)
 		scoped.DELETE("/members/:userId", h.RemoveMember)
 
-		admin := scoped.Group("")
-		admin.Use(handler.RequireRole(model.MemberRoleAdmin))
-		{
-			admin.PATCH("", h.UpdateOrg)
-			admin.POST("/members", h.AddMember)
-			admin.POST("/invites", h.InviteMember)
-			admin.GET("/invites", h.ListInvites)
-			admin.DELETE("/invites/:inviteId", h.RevokeInvite)
-		}
+		scoped.PATCH("", iam.RequirePermission(e, iam.ObjOrg, iam.ActUpdate), h.UpdateOrg)
+		scoped.POST("/members", iam.RequirePermission(e, iam.ObjMember, iam.ActCreate), h.AddMember)
+		scoped.PATCH("/members/:userId", iam.RequirePermission(e, iam.ObjMember, iam.ActUpdate), h.UpdateMemberRole)
 
-		owner := scoped.Group("")
-		owner.Use(handler.RequireRole(model.MemberRoleOwner))
-		{
-			owner.DELETE("", h.DeleteOrg)
-			owner.PATCH("/members/:userId", h.UpdateMemberRole)
-		}
+		scoped.POST("/invites", iam.RequirePermission(e, iam.ObjInvite, iam.ActCreate), h.InviteMember)
+		scoped.GET("/invites", iam.RequirePermission(e, iam.ObjInvite, iam.ActRead), h.ListInvites)
+		scoped.DELETE("/invites/:inviteId", iam.RequirePermission(e, iam.ObjInvite, iam.ActDelete), h.RevokeInvite)
+
+		scoped.DELETE("", iam.RequirePermission(e, iam.ObjOrg, iam.ActDelete), h.DeleteOrg)
 	}
 }

@@ -37,6 +37,7 @@ in `main`.
 | `AccessTTL()` | `ACCESS_TTL_MINUTES`, legacy `JWT_TTL_HOURS` | 15m | Access JWT lifetime |
 | `RefreshTTL()` | `REFRESH_TTL_DAYS` | 30d | Refresh row + session lifetime |
 | `JWTTTL()` | — | = `AccessTTL()` | Backward-compat shim |
+| `SuperAdminEmails()` | `SUPERADMIN_EMAILS` | empty (none) | Comma-separated platform superadmin emails, lowercased; empty never wipes existing grants |
 | `AppURL()` | `APP_URL` | `http://localhost:8080` | Base for email links |
 
 ## Mail (`mail.go`)
@@ -89,4 +90,5 @@ REDIS_ADDR=localhost:6379
 REDIS_PASSWORD=
 REDIS_DB=0
 ALLOW_INSECURE_JWT=true     # local dev only, never prod
+SUPERADMIN_EMAILS=boss@example.com,ops@example.com  # platform superadmins (empty = none)
 ```

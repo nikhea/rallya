@@ -44,18 +44,6 @@ func RequireOrgContext(repo *repository.OrgRepository) gin.HandlerFunc {
 	}
 }
 
-// RequireRole enforces a minimum membership role. Chain after RequireOrgContext.
-func RequireRole(min model.MemberRole) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		role, ok := OrgRoleFromContext(c)
-		if !ok || role.Level() < min.Level() {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "insufficient role"})
-			return
-		}
-		c.Next()
-	}
-}
-
 // OrgIDFromContext returns the resolved org ID.
 func OrgIDFromContext(c *gin.Context) (uuid.UUID, bool) {
 	v, ok := c.Get(string(ctxOrgID))

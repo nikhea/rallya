@@ -18,6 +18,7 @@ import (
 	"github.com/nikhea/rallya/internal/auth/model"
 	"github.com/nikhea/rallya/internal/auth/token"
 	"github.com/nikhea/rallya/internal/notification/jobs"
+	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	"github.com/nikhea/rallya/internal/organization/repository"
 	orgutils "github.com/nikhea/rallya/internal/organization/utils"
@@ -27,24 +28,20 @@ const inviteTTL = 7 * 24 * time.Hour
 
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// OrgDetail is an org with the caller's membership role.
-type OrgDetail struct {
-	Organization orgmodel.Organization `json:"organization"`
-	Role         orgmodel.MemberRole   `json:"role"`
-}
-
 // OrgService orchestrates org flows over OrgRepository.
 // Identity comes from auth.UserReader; mail via jobs.Enqueuer;
-// IAM grouping sync via organization.GroupSyncer (nil-safe pre-IAM).
+// IAM grouping sync and policy seeds via consumer-side seams
+// (nil-safe when unwired: tests, pre-IAM).
 type OrgService struct {
 	repo     *repository.OrgRepository
 	users    auth.UserReader
 	enqueuer jobs.Enqueuer
 	syncer   GroupSyncer
+	seeder   PolicySeeder
 }
 
-// NewOrgService builds the service. users is required; enqueuer/syncer
-// are wired via setters and nil-safe when absent (tests, pre-IAM).
+// NewOrgService builds the service. users is required; enqueuer/syncer/
+// seeder are wired via setters and nil-safe when absent.
 func NewOrgService(repo *repository.OrgRepository, users auth.UserReader) *OrgService {
 	return &OrgService{repo: repo, users: users}
 }
@@ -55,12 +52,15 @@ func (s *OrgService) SetEnqueuer(e jobs.Enqueuer) { s.enqueuer = e }
 // SetGroupSyncer wires IAM grouping sync.
 func (s *OrgService) SetGroupSyncer(g GroupSyncer) { s.syncer = g }
 
+// SetPolicySeeder wires IAM per-org policy seeding.
+func (s *OrgService) SetPolicySeeder(p PolicySeeder) { s.seeder = p }
+
 // ---------- organizations ----------
 
 // CreateOrg creates an org with the caller as OWNER.
 // An empty slug is derived from the name and auto-uniquified
 // (acme, acme-2, ...). An explicit slug that is taken returns ErrSlugTaken.
-func (s *OrgService) CreateOrg(creatorID uuid.UUID, name, slug, logo string) (*OrgDetail, error) {
+func (s *OrgService) CreateOrg(creatorID uuid.UUID, name, slug, logo string) (*orgdto.Org, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, ErrInvalidName
@@ -106,8 +106,9 @@ func (s *OrgService) CreateOrg(creatorID uuid.UUID, name, slug, logo string) (*O
 			return s.repo.CreateMembership(tx, m)
 		})
 		if err == nil {
+			s.seed(o.ID)
 			s.sync(creatorID, o.ID, orgutils.PtrRole(orgmodel.MemberRoleOwner))
-			return &OrgDetail{Organization: *o, Role: orgmodel.MemberRoleOwner}, nil
+			return toOrg(o, orgmodel.MemberRoleOwner), nil
 		}
 		if !errors.Is(err, ErrSlugTaken) || !auto {
 			return nil, err
@@ -143,16 +144,16 @@ func (s *OrgService) ListMemberships(userID uuid.UUID) ([]authdto.OrgMembership,
 }
 
 // GetOrg returns an org for members (non-members get not-found: stealth).
-func (s *OrgService) GetOrg(userID uuid.UUID, ref string) (*OrgDetail, error) {
+func (s *OrgService) GetOrg(userID uuid.UUID, ref string) (*orgdto.Org, error) {
 	o, m, err := s.membership(userID, ref)
 	if err != nil {
 		return nil, err
 	}
-	return &OrgDetail{Organization: *o, Role: m.Role}, nil
+	return toOrg(o, m.Role), nil
 }
 
 // UpdateOrg renames/re-slugs an org (ADMIN+).
-func (s *OrgService) UpdateOrg(userID uuid.UUID, ref, name, slug, logo string) (*OrgDetail, error) {
+func (s *OrgService) UpdateOrg(userID uuid.UUID, ref, name, slug, logo string) (*orgdto.Org, error) {
 	o, m, err := s.requireRole(userID, ref, orgmodel.MemberRoleAdmin)
 	if err != nil {
 		return nil, err
@@ -177,7 +178,7 @@ func (s *OrgService) UpdateOrg(userID uuid.UUID, ref, name, slug, logo string) (
 		}
 		return nil, err
 	}
-	return &OrgDetail{Organization: *o, Role: m.Role}, nil
+	return toOrg(o, m.Role), nil
 }
 
 // DeleteOrg removes an org and cascades memberships/invites (OWNER).
@@ -196,7 +197,16 @@ func (s *OrgService) DeleteOrg(userID uuid.UUID, ref string) error {
 	for _, m := range members {
 		s.sync(m.UserID, o.ID, nil)
 	}
+	s.seedRemove(o.ID)
 	return nil
+}
+
+// toOrg maps an org row + caller role onto the wire shape.
+func toOrg(o *orgmodel.Organization, role orgmodel.MemberRole) *orgdto.Org {
+	return &orgdto.Org{
+		ID: o.ID.String(), Name: o.Name, Slug: o.Slug, LogoURL: o.LogoURL,
+		Role: string(role), CreatedAt: orgutils.FormatTime(o.CreatedAt),
+	}
 }
 
 // ---------- helpers ----------
@@ -275,6 +285,24 @@ func (s *OrgService) getInvite(id uuid.UUID) (*orgmodel.Invite, error) {
 		return nil, err
 	}
 	return inv, nil
+}
+
+// seed installs per-org Casbin policies (best-effort post-commit).
+func (s *OrgService) seed(orgID uuid.UUID) {
+	if s.seeder == nil {
+		return
+	}
+	if err := s.seeder.SeedOrgPolicies(orgID); err != nil {
+		slog.Error("iam policy seed failed", "org", orgID, "error", err)
+	}
+}
+
+// seedRemove drops per-org Casbin policies (best-effort post-delete).
+func (s *OrgService) seedRemove(orgID uuid.UUID) {
+	if s.seeder == nil {
+		return
+	}
+	s.seeder.RemoveOrgPolicies(orgID)
 }
 
 // sync propagates membership state to IAM (nil role = removal).

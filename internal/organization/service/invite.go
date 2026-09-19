@@ -11,6 +11,7 @@ import (
 	"github.com/nikhea/rallya/internal/auth/model"
 	"github.com/nikhea/rallya/internal/auth/token"
 	"github.com/nikhea/rallya/internal/notification/jobs"
+	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	orgutils "github.com/nikhea/rallya/internal/organization/utils"
 )
@@ -70,12 +71,29 @@ func (s *OrgService) InviteMember(grantorID uuid.UUID, ref, email string, role o
 }
 
 // ListInvites returns pending invites (ADMIN+).
-func (s *OrgService) ListInvites(userID uuid.UUID, ref string, limit, offset int) ([]orgmodel.Invite, int64, error) {
+func (s *OrgService) ListInvites(userID uuid.UUID, ref string, limit, offset int) ([]orgdto.Invite, int64, error) {
 	o, _, err := s.requireRole(userID, ref, orgmodel.MemberRoleAdmin)
 	if err != nil {
 		return nil, 0, err
 	}
-	return s.repo.ListInvites(o.ID, limit, offset)
+	invites, total, err := s.repo.ListInvites(o.ID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]orgdto.Invite, 0, len(invites))
+	for _, in := range invites {
+		out = append(out, *toInvite(in))
+	}
+	return out, total, nil
+}
+
+// toInvite maps an invite row onto the wire shape (no token hash).
+func toInvite(in orgmodel.Invite) *orgdto.Invite {
+	return &orgdto.Invite{
+		ID: in.ID.String(), Email: in.Email, Role: string(in.Role),
+		ExpiresAt: orgutils.FormatTime(in.ExpiresAt),
+		CreatedAt: orgutils.FormatTime(in.CreatedAt),
+	}
 }
 
 // RevokeInvite cancels a pending invite (ADMIN+).
@@ -102,7 +120,7 @@ func (s *OrgService) revokeInvite(orgID, inviteID uuid.UUID) error {
 // AcceptInvite consumes an invite, creating the membership. The caller's
 // account email must match the invite (case-insensitive). Re-accepting a
 // consumed invite as a member succeeds idempotently (safe client retries).
-func (s *OrgService) AcceptInvite(userID uuid.UUID, raw string) (*OrgDetail, error) {
+func (s *OrgService) AcceptInvite(userID uuid.UUID, raw string) (*orgdto.Org, error) {
 	now := time.Now()
 	inv, err := s.repo.GetInviteByHash(token.HashToken(raw))
 	if err != nil {
@@ -130,14 +148,14 @@ func (s *OrgService) AcceptInvite(userID uuid.UUID, raw string) (*OrgDetail, err
 		if err != nil {
 			return nil, ErrInvalidInvite
 		}
-		return &OrgDetail{Organization: *o, Role: existing.Role}, nil
+		return toOrg(o, existing.Role), nil
 	}
 	if !strings.EqualFold(u.Email, inv.Email) {
 		return nil, ErrInviteEmailMismatch
 	}
 	if existing, err := s.repo.GetMembership(o.ID, u.ID); err == nil {
 		_ = s.repo.ConsumeInvite(nil, inv.ID, true, now)
-		return &OrgDetail{Organization: *o, Role: existing.Role}, nil
+		return toOrg(o, existing.Role), nil
 	}
 	m := &orgmodel.Membership{OrganizationID: o.ID, UserID: u.ID, Role: inv.Role}
 	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
@@ -152,7 +170,7 @@ func (s *OrgService) AcceptInvite(userID uuid.UUID, raw string) (*OrgDetail, err
 		return nil, err
 	}
 	s.sync(u.ID, o.ID, &inv.Role)
-	return &OrgDetail{Organization: *o, Role: inv.Role}, nil
+	return toOrg(o, inv.Role), nil
 }
 
 // DeclineInvite stamps an invite declined ("reject" path). Idempotent;

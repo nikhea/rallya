@@ -118,7 +118,7 @@ func TestLoginInactiveAndDeleted(t *testing.T) {
 			Update("status", status).Error; err != nil {
 			t.Fatalf("set status: %v", err)
 		}
-		if _, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, service.LoginContext{}); !errors.Is(err, want) {
+		if _, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, dto.LoginContext{}); !errors.Is(err, want) {
 			t.Fatalf("status %s: expected %v, got %v", status, want, err)
 		}
 	}
@@ -143,7 +143,7 @@ func TestUserReaderDelegates(t *testing.T) {
 // mustLoginAgain logs in an already-verified user.
 func mustLoginAgain(t *testing.T, svc *service.AuthService) *dto.TokenPair {
 	t.Helper()
-	pair, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, service.LoginContext{})
+	pair, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, dto.LoginContext{})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -77,4 +78,18 @@ func AppURL() string {
 		return url
 	}
 	return "http://localhost:8080"
+}
+
+// SuperAdminEmails returns platform superadmin account emails
+// (comma-separated SUPERADMIN_EMAILS). Empty means no superadmins:
+// rotation requires an explicit non-empty list (seeding never wipes
+// existing grants on empty input).
+func SuperAdminEmails() []string {
+	var out []string
+	for _, e := range strings.Split(os.Getenv("SUPERADMIN_EMAILS"), ",") {
+		if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
+			out = append(out, e)
+		}
+	}
+	return out
 }

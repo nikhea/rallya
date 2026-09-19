@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	gormadapter "github.com/casbin/gorm-adapter/v3"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -17,6 +18,7 @@ import (
 	authservice "github.com/nikhea/rallya/internal/auth/service"
 	"github.com/nikhea/rallya/internal/auth/testutil"
 	"github.com/nikhea/rallya/internal/auth/token"
+	"github.com/nikhea/rallya/internal/iam"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 	organization "github.com/nikhea/rallya/internal/organization"
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
@@ -42,14 +44,26 @@ func newOrgFixture(t *testing.T) *orgFixture {
 	if err := db.AutoMigrate(orgmodel.AllModels()...); err != nil {
 		t.Fatalf("migrate org: %v", err)
 	}
+	// casbin_rule via the adapter's own model (test-only; production uses
+	// migrations). The full chain runs: service seeds policies on create,
+	// syncs groupings on membership changes, middleware enforces.
+	if err := db.AutoMigrate(&gormadapter.CasbinRule{}); err != nil {
+		t.Fatalf("migrate casbin: %v", err)
+	}
 	orgRepo := repository.NewOrgRepository(db)
 	orgSvc := service.NewOrgService(orgRepo, authSvc)
 	fake := &jobs.FakeEnqueuer{}
 	orgSvc.SetEnqueuer(fake)
+	e, err := iam.NewEnforcer(db)
+	if err != nil {
+		t.Fatalf("enforcer: %v", err)
+	}
+	orgSvc.SetGroupSyncer(iam.NewMembershipSyncer(e))
+	orgSvc.SetPolicySeeder(iam.NewOrgPolicySeeder(e))
 	orgHandler := handler.NewHandler(orgSvc)
 
 	r := gin.New()
-	organization.RegisterRoutes(r.Group("/api/v1/orgs"), orgHandler, orgRepo, authRepo)
+	organization.RegisterRoutes(r.Group("/api/v1/orgs"), orgHandler, orgRepo, authRepo, e)
 
 	f := &orgFixture{
 		router: r, orgSvc: orgSvc, fake: fake,
@@ -87,7 +101,7 @@ func (f *orgFixture) mustUser(t *testing.T, db *gorm.DB, authRepo *authrepo.Auth
 	if err := authSvc.VerifyEmail(raw); err != nil {
 		t.Fatalf("verify: %v", err)
 	}
-	pair, err := authSvc.Login(authdto.Login{Email: email, Password: "Str0ngP@ssw0rd!"}, authservice.LoginContext{})
+	pair, err := authSvc.Login(authdto.Login{Email: email, Password: "Str0ngP@ssw0rd!"}, authdto.LoginContext{})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}

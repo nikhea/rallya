@@ -29,13 +29,6 @@ const (
 	resendVerificationThrottle = 60 * time.Second
 )
 
-// LoginContext carries request metadata for sessions/attempts.
-type LoginContext struct {
-	IPAddress  string
-	UserAgent  string
-	DeviceName string
-}
-
 // AuthService orchestrates auth flows over AuthRepository.
 // Email delivery goes through the jobs Enqueuer (River); welcome mail
 // is enqueued post-commit, verification/reset mail transactionally.
@@ -267,7 +260,7 @@ func (s *AuthService) ResendVerification(email string) error {
 
 // Login validates credentials, enforces status + verification, then mints
 // a session + refresh pair and records the attempt.
-func (s *AuthService) Login(in dto.Login, ctx LoginContext) (*dto.TokenPair, error) {
+func (s *AuthService) Login(in dto.Login, ctx dto.LoginContext) (*dto.TokenPair, error) {
 	email := strings.ToLower(strings.TrimSpace(in.Email))
 	u, err := s.repo.GetUserByEmail(email)
 	if err != nil {

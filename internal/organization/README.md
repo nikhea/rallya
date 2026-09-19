@@ -67,9 +67,10 @@ Roles order `OWNER(3) > ADMIN(2) > MEMBER(1)`. Canonical DDL:
   display data, invite email-match. Batch note: member listing is N+1 by user;
   fine at org scale, revisit with `GetUsersByIDs` if it ever matters.
 - **org → iam**: `GroupSyncer.SyncMembership(user, org, role|nil)` after every
-  membership mutation (nil = removal). Best-effort post-commit: failures log loud
-  (`slog.Error`), membership stands, `SyncUserPolicies` repairs. No IAM import —
-  the interface lives on the consumer side.
+  membership mutation (nil = removal), plus `PolicySeeder.SeedOrgPolicies` on
+  create and `RemoveOrgPolicies` on delete. Best-effort post-commit: failures log
+  loud (`slog.Error`), membership stands, `SyncUserPolicies` repairs. No IAM
+  import — both interfaces live on the consumer side; wired in `main`.
 - **No cross-domain joins**; no auth-table writes; stealth 404s (never confirm
   org existence to outsiders); forgot-style enumeration safety on invites is
   intentionally *not* applied to admin invite reads (admins see their org).

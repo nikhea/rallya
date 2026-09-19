@@ -101,10 +101,10 @@ func TestCreateAndGetOrg(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if d.Organization.Slug != "acme-inc" {
-		t.Fatalf("expected slugified slug, got %q", d.Organization.Slug)
+	if d.Slug != "acme-inc" {
+		t.Fatalf("expected slugified slug, got %q", d.Slug)
 	}
-	if d.Role != orgmodel.MemberRoleOwner {
+	if d.Role != string(orgmodel.MemberRoleOwner) {
 		t.Fatalf("expected OWNER, got %v", d.Role)
 	}
 	// Duplicate slug.
@@ -120,7 +120,7 @@ func TestCreateAndGetOrg(t *testing.T) {
 		t.Fatalf("expected ErrInvalidName, got %v", err)
 	}
 	// Get by id and slug; stranger gets stealth not-found.
-	if _, err := f.svc.GetOrg(f.owner.ID, d.Organization.ID.String()); err != nil {
+	if _, err := f.svc.GetOrg(f.owner.ID, d.ID); err != nil {
 		t.Fatalf("get by id: %v", err)
 	}
 	if _, err := f.svc.GetOrg(f.owner.ID, "acme-inc"); err != nil {
@@ -146,21 +146,21 @@ func TestUpdateAndDeleteOrg(t *testing.T) {
 	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
 
 	// Member cannot update.
-	m, _ := f.svc.AddMember(f.owner.ID, d.Organization.Slug, f.member.Email, orgmodel.MemberRoleMember)
+	m, _ := f.svc.AddMember(f.owner.ID, d.Slug, f.member.Email, orgmodel.MemberRoleMember)
 	_ = m
-	if _, err := f.svc.UpdateOrg(f.member.ID, d.Organization.Slug, "Nope", "", ""); !errors.Is(err, service.ErrForbidden) {
+	if _, err := f.svc.UpdateOrg(f.member.ID, d.Slug, "Nope", "", ""); !errors.Is(err, service.ErrForbidden) {
 		t.Fatalf("expected ErrForbidden, got %v", err)
 	}
 	// Promote to admin via owner, then update works.
-	if _, err := f.svc.UpdateMemberRole(f.owner.ID, d.Organization.Slug, f.member.ID, orgmodel.MemberRoleAdmin); err != nil {
+	if _, err := f.svc.UpdateMemberRole(f.owner.ID, d.Slug, f.member.ID, orgmodel.MemberRoleAdmin); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
-	updated, err := f.svc.UpdateOrg(f.member.ID, d.Organization.Slug, "Acme Corp", "acme-corp", "")
+	updated, err := f.svc.UpdateOrg(f.member.ID, d.Slug, "Acme Corp", "acme-corp", "")
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
-	if updated.Organization.Name != "Acme Corp" || updated.Organization.Slug != "acme-corp" {
-		t.Fatalf("unexpected org: %+v", updated.Organization)
+	if updated.Name != "Acme Corp" || updated.Slug != "acme-corp" {
+		t.Fatalf("unexpected org: %+v", updated)
 	}
 	// Admin cannot delete.
 	if err := f.svc.DeleteOrg(f.member.ID, "acme-corp"); !errors.Is(err, service.ErrForbidden) {
@@ -184,7 +184,7 @@ func TestUpdateAndDeleteOrg(t *testing.T) {
 func TestMemberGuardsAndLastOwner(t *testing.T) {
 	f := newOrgFixture(t)
 	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
-	slug := d.Organization.Slug
+	slug := d.Slug
 
 	// AddMember: unknown account.
 	if _, err := f.svc.AddMember(f.owner.ID, slug, "ghost@test.com", orgmodel.MemberRoleMember); !errors.Is(err, service.ErrUserNotFound) {
@@ -237,7 +237,7 @@ func TestMemberGuardsAndLastOwner(t *testing.T) {
 func TestInviteAcceptDeclineFlow(t *testing.T) {
 	f := newOrgFixture(t)
 	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
-	slug := d.Organization.Slug
+	slug := d.Slug
 
 	// Non-admin cannot invite.
 	if err := f.svc.InviteMember(f.stranger.ID, slug, "new@test.com", orgmodel.MemberRoleMember); !errors.Is(err, service.ErrOrgNotFound) {
@@ -271,7 +271,7 @@ func TestInviteAcceptDeclineFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("accept: %v", err)
 	}
-	if detail.Role != orgmodel.MemberRoleMember {
+	if detail.Role != string(orgmodel.MemberRoleMember) {
 		t.Fatalf("expected MEMBER, got %v", detail.Role)
 	}
 	// Second invite + decline path.

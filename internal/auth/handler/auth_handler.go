@@ -179,7 +179,7 @@ func (h *Handler) Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	pair, err := h.svc.Login(in, service.LoginContext{
+	pair, err := h.svc.Login(in, dto.LoginContext{
 		IPAddress:  c.ClientIP(),
 		UserAgent:  c.Request.UserAgent(),
 		DeviceName: c.GetHeader("X-Device-Name"),

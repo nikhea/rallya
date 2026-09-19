@@ -6,6 +6,7 @@ package utils
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/nikhea/rallya/cmd/config"
 	"github.com/nikhea/rallya/internal/auth/model"
@@ -79,3 +80,6 @@ func IsUniqueViolation(err error) bool {
 
 // PtrRole boxes a member role.
 func PtrRole(r orgmodel.MemberRole) *orgmodel.MemberRole { return &r }
+
+// FormatTime renders UTC RFC3339 for wire shapes.
+func FormatTime(t time.Time) string { return t.UTC().Format(time.RFC3339) }

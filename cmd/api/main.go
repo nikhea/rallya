@@ -21,6 +21,7 @@ import (
 	"github.com/nikhea/rallya/internal/auth/handler"
 	"github.com/nikhea/rallya/internal/auth/repository"
 	"github.com/nikhea/rallya/internal/auth/service"
+	"github.com/nikhea/rallya/internal/iam"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 	organization "github.com/nikhea/rallya/internal/organization"
 	orghandler "github.com/nikhea/rallya/internal/organization/handler"
@@ -104,12 +105,26 @@ func main() {
 		})
 		auth.RegisterRoutes(api.Group("/auth"), authHandler, authRepo)
 
+		// IAM (Casbin): enforcer over the shared handle; policies seeded
+		// per-org by the organization domain, superadmins from env.
+		enforcer, err := iam.NewEnforcer(config.DB)
+		if err != nil {
+			slog.Error("Casbin enforcer failed", "error", err)
+			os.Exit(1)
+		}
+		if err := iam.SeedSuperAdmins(enforcer, authSvc, config.SuperAdminEmails()); err != nil {
+			slog.Error("Superadmin seed failed", "error", err)
+			os.Exit(1)
+		}
+
 		// Organization domain: consumes auth via UserReader; mail via River.
 		orgRepo := orgrepository.NewOrgRepository(config.DB)
 		orgSvc := orgservice.NewOrgService(orgRepo, authSvc)
 		orgSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		orgSvc.SetGroupSyncer(iam.NewMembershipSyncer(enforcer))
+		orgSvc.SetPolicySeeder(iam.NewOrgPolicySeeder(enforcer))
 		orgHandler := orghandler.NewHandler(orgSvc)
-		organization.RegisterRoutes(api.Group("/orgs"), orgHandler, orgRepo, authRepo)
+		organization.RegisterRoutes(api.Group("/orgs"), orgHandler, orgRepo, authRepo, enforcer)
 
 		// GET /auth/me embeds org context (nil-safe when unwired).
 		authHandler.SetMembershipLister(orgSvc)

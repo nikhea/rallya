@@ -16,6 +16,15 @@ type Login struct {
 	Password string `json:"password" binding:"required,min=1,max=128" example:"Str0ngP@ssw0rd!"`
 }
 
+// LoginContext carries request metadata for sessions/attempts.
+// It is a service input contract (not JSON): the handler builds it from
+// the HTTP request (client IP, user agent, device header).
+type LoginContext struct {
+	IPAddress  string `json:"-" example:"127.0.0.1"`
+	UserAgent  string `json:"-" example:"Mozilla/5.0"`
+	DeviceName string `json:"-" example:"Chrome Laptop"`
+}
+
 // Refresh is POST /api/v1/auth/refresh (JSON body transport).
 type Refresh struct {
 	RefreshToken string `json:"refreshToken" binding:"required,min=1" example:"a3f1c9e2b4d60718293a4b5c6d7e8f09a1b2c3d4e5f60718293a4b5c6d7e8f0"`
