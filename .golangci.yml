@@ -1,0 +1,46 @@
+# ESLint equivalent: `make lint` (CI-gated). Prettier equivalent: `make fmt`
+# (gofumpt, enforced by `make fmt-check` in CI).
+version: "2"
+
+linters:
+  enable:
+    - bodyclose
+    - durationcheck
+    - errcheck
+    - ineffassign
+    - misspell
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - unused
+  settings:
+    errcheck:
+      # test helpers and fire-and-forget closes stay readable
+      exclude-functions:
+        - (*testing.T).Helper
+        - (*testing.T).Fatalf
+        - (*testing.T).Logf
+        - (net.Conn).Close
+  exclusions:
+    generated: lax
+    paths:
+      - docs/*
+      - tmp/*
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: github.com/nikhea/rallya
+  exclusions:
+    generated: lax
+    paths:
+      - docs/*
+      - tmp/*
