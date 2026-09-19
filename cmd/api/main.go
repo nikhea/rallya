@@ -37,6 +37,9 @@ import (
 	orghandler "github.com/nikhea/rallya/internal/organization/handler"
 	orgrepository "github.com/nikhea/rallya/internal/organization/repository"
 	orgservice "github.com/nikhea/rallya/internal/organization/service"
+	payment "github.com/nikhea/rallya/internal/payment"
+	paymenthandler "github.com/nikhea/rallya/internal/payment/handler"
+	paymentservice "github.com/nikhea/rallya/internal/payment/service"
 	ticketing "github.com/nikhea/rallya/internal/ticketing"
 	tickethandler "github.com/nikhea/rallya/internal/ticketing/handler"
 	ticketrepository "github.com/nikhea/rallya/internal/ticketing/repository"
@@ -173,6 +176,18 @@ func main() {
 			func() (river.JobArgs, *river.InsertOpts) {
 				return orderjobs.SweepExpiredOrdersArgs{}, nil
 			}, nil))
+
+		// Payments domain: Stripe Checkout + webhooks. Degrades to 503s
+		// when unconfigured; boot never fails for missing keys.
+		var checkout paymentservice.CheckoutProvider
+		if stripeProvider, err := paymentservice.NewStripeCheckout(); err != nil {
+			slog.Warn("Stripe unconfigured, checkout disabled", "error", err)
+		} else {
+			checkout = stripeProvider
+		}
+		paymentSvc := paymentservice.NewPaymentService(orderSvc, checkout)
+		paymentHandler := paymenthandler.NewHandler(paymentSvc, config.AppURL())
+		payment.RegisterRoutes(api, paymentHandler, authRepo)
 
 		// Cover images + uploads served read-only (local disk for MVP).
 		if err := os.MkdirAll("./uploads", 0o755); err != nil {

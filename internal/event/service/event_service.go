@@ -768,3 +768,15 @@ func (s *EventService) OrgOf(eventID uuid.UUID) (uuid.UUID, error) {
 	}
 	return e.OrganizationID, nil
 }
+
+// EventTitle returns an event title (internal cross-domain use).
+func (s *EventService) EventTitle(eventID uuid.UUID) (string, error) {
+	e, err := s.repo.GetEventByID(eventID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrEventNotFound
+		}
+		return "", err
+	}
+	return e.Title, nil
+}

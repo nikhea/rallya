@@ -32,6 +32,7 @@ type TicketStore interface {
 // EventLookup resolves an event's owning org for admin checks.
 type EventLookup interface {
 	OrgOf(eventID uuid.UUID) (uuid.UUID, error)
+	EventTitle(eventID uuid.UUID) (string, error)
 }
 
 // OrgAccess answers management rights for support actions.
@@ -136,6 +137,94 @@ func (s *OrderService) GetOrder(userID, orderID uuid.UUID) (*orderdto.Order, err
 		return nil, ErrOrderNotFound // stealth: hide others' orders
 	}
 	return toOrder(o), nil
+}
+
+// FindOrder is the unguarded internal lookup for the payments domain
+// (webhook fulfillment has no user context). Never exposed over HTTP.
+func (s *OrderService) FindOrder(orderID uuid.UUID) (*model.Order, error) {
+	return s.repo.GetOrderByID(orderID)
+}
+
+// CheckoutDetail bundles order + display names for checkout creation.
+// Owner-only; priced PENDING_PAYMENT orders only (free needs no checkout).
+func (s *OrderService) CheckoutDetail(userID, orderID uuid.UUID) (*CheckoutDetail, error) {
+	o, err := s.repo.GetOrderByID(orderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrOrderNotFound
+		}
+		return nil, err
+	}
+	if o.UserID != userID {
+		return nil, ErrOrderNotFound
+	}
+	if o.Status != model.OrderStatusPendingPayment {
+		return nil, ErrInvalidStatus
+	}
+	tt, _, err := s.tickets.InspectType(o.TicketTypeID)
+	if err != nil {
+		return nil, ErrOrderNotFound
+	}
+	title, err := s.events.EventTitle(o.EventID)
+	if err != nil {
+		return nil, ErrOrderNotFound
+	}
+	return &CheckoutDetail{
+		Order: o, TicketName: tt.Name, EventTitle: title,
+	}, nil
+}
+
+// CheckoutDetail is the payments-facing order view (internal use only).
+type CheckoutDetail struct {
+	Order      *model.Order
+	TicketName string
+	EventTitle string
+}
+
+// MarkPaid transitions PENDING_PAYMENT -> CONFIRMED after a verified Stripe
+// webhook. Idempotent: already-CONFIRMED orders succeed silently (webhook
+// redelivery). Any other status is rejected. Records session/intent + paid_at.
+func (s *OrderService) MarkPaid(orderID uuid.UUID, sessionID, paymentIntentID string) (*orderdto.Order, error) {
+	o, err := s.repo.GetOrderByID(orderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrOrderNotFound
+		}
+		return nil, err
+	}
+	if o.Status == model.OrderStatusConfirmed {
+		return toOrder(o), nil
+	}
+	if o.Status != model.OrderStatusPendingPayment {
+		return nil, ErrInvalidStatus
+	}
+	now := time.Now()
+	o.Status = model.OrderStatusConfirmed
+	o.StripeSessionID = &sessionID
+	if paymentIntentID != "" {
+		o.StripePaymentIntentID = &paymentIntentID
+	}
+	o.PaidAt = &now
+	if err := s.repo.UpdateOrder(nil, o); err != nil {
+		return nil, err
+	}
+	return toOrder(o), nil
+}
+
+// SetStripeSession records the checkout session on a payable order
+// (PENDING_PAYMENT at creation; CONFIRMED overwrites are harmless no-ops
+// for late replays). Other states reject: nothing should link sessions
+// to dead orders.
+func (s *OrderService) SetStripeSession(orderID uuid.UUID, sessionID string) error {
+	o, err := s.repo.GetOrderByID(orderID)
+	if err != nil {
+		return err
+	}
+	if o.Status != model.OrderStatusPendingPayment && o.Status != model.OrderStatusConfirmed {
+		return ErrInvalidStatus
+	}
+	o.StripeSessionID = &sessionID
+	return s.repo.UpdateOrder(nil, o)
 }
 
 // ListMyOrders returns the caller's history, newest first.

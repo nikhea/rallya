@@ -31,7 +31,7 @@ func newFakeTickets() *fakeTickets {
 func (f *fakeTickets) addType(id, event uuid.UUID, price, total int, max *int, published bool) {
 	_ = published
 	f.types[id] = &ticketdto.TicketType{
-		ID: id.String(), EventID: event.String(), PriceCents: price, Currency: "USD",
+		ID: id.String(), EventID: event.String(), Name: "GA", PriceCents: price, Currency: "USD",
 		QuantityTotal: total, MaxPerOrder: max, Status: "ACTIVE", ForSale: true,
 	}
 	f.sold[id] = 0
@@ -88,6 +88,16 @@ var errNoType = errors.New("no type")
 type fakeDeps struct {
 	orgs   map[uuid.UUID]uuid.UUID // event -> org
 	admins map[uuid.UUID]bool
+}
+
+func (f *fakeDeps) EventTitle(eventID uuid.UUID) (string, error) {
+	if _, ok := f.orgs[eventID]; !ok {
+		if len(f.orgs) == 0 {
+			return "Fest", nil
+		}
+		return "", errors.New("no event")
+	}
+	return "Fest", nil
 }
 
 func (f *fakeDeps) OrgOf(eventID uuid.UUID) (uuid.UUID, error) {
@@ -312,4 +322,76 @@ func mustParseO(t *testing.T, s string) uuid.UUID {
 		t.Fatalf("parse: %v", err)
 	}
 	return id
+}
+
+func TestCheckoutDetailGuards(t *testing.T) {
+	f := newOrderFixture(t)
+	typeID := uuid.New()
+	f.ticks.addType(typeID, f.event, 100, 10, nil, true)
+
+	o, err := f.svc.CreateOrder(context.Background(), f.user, f.event, service.CreateInput{Quantity: 1, TicketTypeID: typeID})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// Stranger hidden.
+	if _, err := f.svc.CheckoutDetail(uuid.New(), mustParseO(t, o.ID)); !errors.Is(err, service.ErrOrderNotFound) {
+		t.Fatalf("expected ErrOrderNotFound, got %v", err)
+	}
+	// Owner gets display bundle.
+	d, err := f.svc.CheckoutDetail(f.user, mustParseO(t, o.ID))
+	if err != nil {
+		t.Fatalf("detail: %v", err)
+	}
+	if d.TicketName == "" || d.EventTitle == "" {
+		t.Fatalf("missing display names: %+v", d)
+	}
+	// Unknown order.
+	if _, err := f.svc.CheckoutDetail(f.user, uuid.New()); !errors.Is(err, service.ErrOrderNotFound) {
+		t.Fatalf("expected ErrOrderNotFound, got %v", err)
+	}
+}
+
+func TestMarkPaidIdempotent(t *testing.T) {
+	f := newOrderFixture(t)
+	typeID := uuid.New()
+	f.ticks.addType(typeID, f.event, 100, 10, nil, true)
+
+	o, err := f.svc.CreateOrder(context.Background(), f.user, f.event, service.CreateInput{Quantity: 1, TicketTypeID: typeID})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	oid := mustParseO(t, o.ID)
+	paid, err := f.svc.MarkPaid(oid, "cs_test_1", "pi_test_1")
+	if err != nil || paid.Status != "CONFIRMED" {
+		t.Fatalf("mark paid: %+v %v", paid, err)
+	}
+	// Redelivery succeeds silently.
+	if _, err := f.svc.MarkPaid(oid, "cs_test_1", "pi_test_1"); err != nil {
+		t.Fatalf("redelivery: %v", err)
+	}
+	// Unknown order 404s.
+	if _, err := f.svc.MarkPaid(uuid.New(), "cs_x", ""); !errors.Is(err, service.ErrOrderNotFound) {
+		t.Fatalf("expected ErrOrderNotFound, got %v", err)
+	}
+	// Wrong state (cancelled) rejected.
+	freeID := uuid.New()
+	f.ticks.addType(freeID, f.event, 0, 10, nil, true)
+	o2, err := f.svc.CreateOrder(context.Background(), f.user, f.event, service.CreateInput{Quantity: 1, TicketTypeID: freeID})
+	if err != nil {
+		t.Fatalf("create2: %v", err)
+	}
+	if _, err := f.svc.CancelOrder(context.Background(), f.user, mustParseO(t, o2.ID)); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	if _, err := f.svc.MarkPaid(mustParseO(t, o2.ID), "cs_x", ""); !errors.Is(err, service.ErrInvalidStatus) {
+		t.Fatalf("expected ErrInvalidStatus, got %v", err)
+	}
+	// Session recorded.
+	if err := f.svc.SetStripeSession(oid, "cs_test_9"); err != nil {
+		t.Fatalf("set session: %v", err)
+	}
+	got, err := f.svc.GetOrder(f.user, oid)
+	if err != nil || got.Status != "CONFIRMED" {
+		t.Fatalf("get: %+v %v", got, err)
+	}
 }

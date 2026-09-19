@@ -54,6 +54,12 @@ type Order struct {
 
 	Status OrderStatus `gorm:"size:20;not null;default:PENDING" json:"status"`
 
+	// Stripe linkage (checkout sessions + charges). Session IDs reconcile
+	// webhooks; NULL until a checkout is created.
+	StripeSessionID       *string    `gorm:"uniqueIndex" json:"-"`
+	StripePaymentIntentID *string    `json:"-"`
+	PaidAt                *time.Time `json:"paidAt,omitempty"`
+
 	IdempotencyKey *string `gorm:"size:100" json:"-"`
 
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`

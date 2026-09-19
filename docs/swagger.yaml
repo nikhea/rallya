@@ -600,6 +600,27 @@ definitions:
         maxLength: 100
         type: string
     type: object
+  paymentdto.CheckoutResponse:
+    properties:
+      sessionId:
+        example: cs_test_123
+        type: string
+      url:
+        example: https://checkout.stripe.com/pay/cs_test_123
+        type: string
+    type: object
+  paymentdto.ErrorAlias:
+    properties:
+      error:
+        example: payment required
+        type: string
+    type: object
+  paymentdto.MessageAlias:
+    properties:
+      message:
+        example: ok
+        type: string
+    type: object
   ticketdto.CreateTicket:
     properties:
       currency:
@@ -1308,6 +1329,44 @@ paths:
       summary: Cancel order
       tags:
       - orders
+  /orders/{id}/checkout:
+    post:
+      description: Returns a hosted Checkout Session URL for a priced order awaiting
+        payment. Free orders 400 (nothing to pay).
+      parameters:
+      - description: Order UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/paymentdto.CheckoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+        "503":
+          description: Stripe unconfigured
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create Stripe checkout
+      tags:
+      - payments
   /orders/mine:
     get:
       description: Caller history, newest first, paginated.
@@ -2765,6 +2824,33 @@ paths:
       summary: Decline invite
       tags:
       - orgs
+  /webhooks/stripe:
+    post:
+      consumes:
+      - application/json
+      description: Signature-verified fulfillment endpoint. Send raw event JSON with
+        a valid Stripe-Signature header.
+      parameters:
+      - description: HMAC signature
+        example: t=1492774577,v1=5257a869e7ecebeda32affa9cfc0f4
+        in: header
+        name: Stripe-Signature
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ok / ignored
+          schema:
+            $ref: '#/definitions/paymentdto.MessageAlias'
+        "400":
+          description: Bad signature / empty payload
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+      summary: Stripe webhook
+      tags:
+      - payments
 securityDefinitions:
   BearerAuth:
     description: '"Bearer <accessToken> from POST /auth/login (or /auth/refresh)."'

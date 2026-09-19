@@ -58,5 +58,6 @@ func TestSweeperWorkerSweeps(t *testing.T) {
 // stubDeps implements EventLookup + OrgAccess with zero values.
 type stubDeps struct{}
 
-func (stubDeps) OrgOf(uuid.UUID) (uuid.UUID, error) { return uuid.Nil, nil }
-func (stubDeps) CanManage(_, _ uuid.UUID) bool      { return false }
+func (stubDeps) OrgOf(uuid.UUID) (uuid.UUID, error)   { return uuid.Nil, nil }
+func (stubDeps) EventTitle(uuid.UUID) (string, error) { return "Fest", nil }
+func (stubDeps) CanManage(_, _ uuid.UUID) bool        { return false }
