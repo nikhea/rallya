@@ -32,6 +32,10 @@ import (
 	orghandler "github.com/nikhea/rallya/internal/organization/handler"
 	orgrepository "github.com/nikhea/rallya/internal/organization/repository"
 	orgservice "github.com/nikhea/rallya/internal/organization/service"
+	ticketing "github.com/nikhea/rallya/internal/ticketing"
+	tickethandler "github.com/nikhea/rallya/internal/ticketing/handler"
+	ticketrepository "github.com/nikhea/rallya/internal/ticketing/repository"
+	ticketservice "github.com/nikhea/rallya/internal/ticketing/service"
 
 	_ "github.com/nikhea/rallya/docs"
 )
@@ -144,6 +148,12 @@ func main() {
 		}
 		eventHandler := eventhandler.NewHandler(eventSvc)
 		event.RegisterRoutes(api, eventHandler, authRepo, orgRepo, enforcer)
+
+		// Ticketing domain: types + pricing + rules over the event adapter.
+		ticketRepo := ticketrepository.NewTicketRepository(config.DB)
+		ticketSvc := ticketservice.NewTicketService(ticketRepo, ticketservice.NewEventAdapter(eventSvc))
+		ticketHandler := tickethandler.NewHandler(ticketSvc)
+		ticketing.RegisterRoutes(api, ticketHandler, authRepo, orgRepo, enforcer)
 		// Org delete cleans event assets via the event seam (rows cascade).
 		orgSvc.SetAssetCleaner(eventSvc)
 

@@ -646,6 +646,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/{id}/tickets": {
+            "get": {
+                "description": "Active types with live availability. No purchase flow yet (orders module).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "List tickets for sale",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d",
+                        "description": "Event UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketsPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
         "/orgs": {
             "get": {
                 "security": [
@@ -1716,6 +1758,513 @@ const docTemplate = `{
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/tickets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "All types incl. drafts, with live availability.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "List ticket types",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketsPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Prices one admission tier; starts DRAFT. Capacity coupling enforced both ways.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Create ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Ticket payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.CreateTicket"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Capacity exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/tickets/{ticketId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Get ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Only with zero sales; sold history survives.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Delete ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Has sales",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Quantity cuts below sold and capacity violations rejected.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Update ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.UpdateTicket"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/tickets/{ticketId}/activate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "DRAFT/PAUSED → ACTIVE.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Activate ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/tickets/{ticketId}/pause": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "ACTIVE → PAUSED (reversible; distinct from computed SOLD_OUT).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Pause ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
                         }
                     }
                 }
@@ -3075,6 +3624,189 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "example": "acme"
+                }
+            }
+        },
+        "ticketdto.CreateTicket": {
+            "type": "object",
+            "required": [
+                "name",
+                "quantityTotal"
+            ],
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "example": "Standing floor access."
+                },
+                "maxPerOrder": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 4
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "General Admission"
+                },
+                "priceCents": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2500
+                },
+                "quantityTotal": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 200
+                },
+                "saleEndsAt": {
+                    "type": "string",
+                    "example": "2026-07-31T23:59:59Z"
+                },
+                "saleStartsAt": {
+                    "type": "string",
+                    "example": "2026-07-01T00:00:00Z"
+                }
+            }
+        },
+        "ticketdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "sold out"
+                }
+            }
+        },
+        "ticketdto.MessageAlias": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Ticket type deleted"
+                }
+            }
+        },
+        "ticketdto.TicketType": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "forSale": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "id": {
+                    "type": "string",
+                    "example": "6f708192-0314-2b3c-4d5e-6f708192a3b4"
+                },
+                "maxPerOrder": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "name": {
+                    "type": "string",
+                    "example": "General Admission"
+                },
+                "priceCents": {
+                    "type": "integer",
+                    "example": 2500
+                },
+                "quantitySold": {
+                    "type": "integer",
+                    "example": 37
+                },
+                "quantityTotal": {
+                    "type": "integer",
+                    "example": 200
+                },
+                "remaining": {
+                    "type": "integer",
+                    "example": 163
+                },
+                "saleEndsAt": {
+                    "type": "string",
+                    "example": "2026-07-31T23:59:59Z"
+                },
+                "saleStartsAt": {
+                    "type": "string",
+                    "example": "2026-07-01T00:00:00Z"
+                },
+                "soldOut": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "status": {
+                    "type": "string",
+                    "example": "ACTIVE"
+                },
+                "unavailableReason": {
+                    "type": "string",
+                    "example": "sold_out"
+                }
+            }
+        },
+        "ticketdto.TicketsPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ticketdto.TicketType"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "ticketdto.UpdateTicket": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "maxPerOrder": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "priceCents": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "quantityTotal": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "saleEndsAt": {
+                    "type": "string"
+                },
+                "saleStartsAt": {
+                    "type": "string"
                 }
             }
         }

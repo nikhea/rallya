@@ -537,6 +537,139 @@ definitions:
         maxLength: 100
         type: string
     type: object
+  ticketdto.CreateTicket:
+    properties:
+      currency:
+        example: USD
+        type: string
+      description:
+        example: Standing floor access.
+        maxLength: 2000
+        type: string
+      maxPerOrder:
+        example: 4
+        minimum: 1
+        type: integer
+      name:
+        example: General Admission
+        maxLength: 255
+        minLength: 1
+        type: string
+      priceCents:
+        example: 2500
+        minimum: 0
+        type: integer
+      quantityTotal:
+        example: 200
+        minimum: 1
+        type: integer
+      saleEndsAt:
+        example: "2026-07-31T23:59:59Z"
+        type: string
+      saleStartsAt:
+        example: "2026-07-01T00:00:00Z"
+        type: string
+    required:
+    - name
+    - quantityTotal
+    type: object
+  ticketdto.ErrorAlias:
+    properties:
+      error:
+        example: sold out
+        type: string
+    type: object
+  ticketdto.MessageAlias:
+    properties:
+      message:
+        example: Ticket type deleted
+        type: string
+    type: object
+  ticketdto.TicketType:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      currency:
+        example: USD
+        type: string
+      description:
+        type: string
+      forSale:
+        example: true
+        type: boolean
+      id:
+        example: 6f708192-0314-2b3c-4d5e-6f708192a3b4
+        type: string
+      maxPerOrder:
+        example: 4
+        type: integer
+      name:
+        example: General Admission
+        type: string
+      priceCents:
+        example: 2500
+        type: integer
+      quantitySold:
+        example: 37
+        type: integer
+      quantityTotal:
+        example: 200
+        type: integer
+      remaining:
+        example: 163
+        type: integer
+      saleEndsAt:
+        example: "2026-07-31T23:59:59Z"
+        type: string
+      saleStartsAt:
+        example: "2026-07-01T00:00:00Z"
+        type: string
+      soldOut:
+        example: false
+        type: boolean
+      status:
+        example: ACTIVE
+        type: string
+      unavailableReason:
+        example: sold_out
+        type: string
+    type: object
+  ticketdto.TicketsPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/ticketdto.TicketType'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  ticketdto.UpdateTicket:
+    properties:
+      currency:
+        type: string
+      description:
+        maxLength: 2000
+        type: string
+      maxPerOrder:
+        minimum: 1
+        type: integer
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      priceCents:
+        minimum: 0
+        type: integer
+      quantityTotal:
+        minimum: 1
+        type: integer
+      saleEndsAt:
+        type: string
+      saleStartsAt:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -970,6 +1103,35 @@ paths:
       summary: Get published event
       tags:
       - events
+  /events/{id}/tickets:
+    get:
+      description: Active types with live availability. No purchase flow yet (orders
+        module).
+      parameters:
+      - description: Event UUID
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketsPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      summary: List tickets for sale
+      tags:
+      - tickets
   /orgs:
     get:
       description: Orgs the caller belongs to, with roles. Used for org switching
@@ -1601,6 +1763,338 @@ paths:
       summary: Publish event
       tags:
       - events
+  /orgs/{id}/events/{eventId}/tickets:
+    get:
+      description: All types incl. drafts, with live availability.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketsPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List ticket types
+      tags:
+      - tickets
+    post:
+      consumes:
+      - application/json
+      description: Prices one admission tier; starts DRAFT. Capacity coupling enforced
+        both ways.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ticketdto.CreateTicket'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "409":
+          description: Capacity exceeded
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create ticket type
+      tags:
+      - tickets
+  /orgs/{id}/events/{eventId}/tickets/{ticketId}:
+    delete:
+      description: Only with zero sales; sold history survives.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "409":
+          description: Has sales
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Delete ticket type
+      tags:
+      - tickets
+    get:
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get ticket type
+      tags:
+      - tickets
+    patch:
+      consumes:
+      - application/json
+      description: Quantity cuts below sold and capacity violations rejected.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ticketdto.UpdateTicket'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update ticket type
+      tags:
+      - tickets
+  /orgs/{id}/events/{eventId}/tickets/{ticketId}/activate:
+    post:
+      description: DRAFT/PAUSED → ACTIVE.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Activate ticket type
+      tags:
+      - tickets
+  /orgs/{id}/events/{eventId}/tickets/{ticketId}/pause:
+    post:
+      description: ACTIVE → PAUSED (reversible; distinct from computed SOLD_OUT).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Pause ticket type
+      tags:
+      - tickets
   /orgs/{id}/events/{eventId}/unpublish:
     post:
       description: PUBLISHED → DRAFT.

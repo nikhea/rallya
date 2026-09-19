@@ -17,6 +17,7 @@ const (
 	ObjMember = "member"
 	ObjInvite = "invite"
 	ObjEvent  = "event"
+	ObjTicket = "ticket"
 
 	ActRead    = "read"
 	ActCreate  = "create"
@@ -51,6 +52,10 @@ func AdminPermissions() []Permission {
 		{ObjEvent, ActUpdate},
 		{ObjEvent, ActDelete},
 		{ObjEvent, ActPublish},
+		{ObjTicket, ActRead},
+		{ObjTicket, ActCreate},
+		{ObjTicket, ActUpdate},
+		{ObjTicket, ActDelete},
 	}
 }
 
@@ -60,6 +65,7 @@ func MemberPermissions() []Permission {
 		{ObjOrg, ActRead},
 		{ObjMember, ActRead},
 		{ObjEvent, ActRead},
+		{ObjTicket, ActRead},
 	}
 }
 
