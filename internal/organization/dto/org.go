@@ -1,5 +1,7 @@
 package orgdto
 
+import "github.com/google/uuid"
+
 // CreateOrg is POST /api/v1/orgs.
 type CreateOrg struct {
 	Name string  `json:"name" binding:"required,min=1,max=255" example:"Acme Inc"`
@@ -68,6 +70,18 @@ type Invite struct {
 	Role      string `json:"role" example:"MEMBER"`
 	ExpiresAt string `json:"expiresAt" example:"2026-09-26T12:00:00Z"`
 	CreatedAt string `json:"createdAt" example:"2026-09-19T12:00:00Z"`
+}
+
+// MemberNotify is one announcement recipient (internal read shape).
+type MemberNotify struct {
+	UserID uuid.UUID
+	Email  string
+	Name   string
+}
+
+// UpdateMyPreferences is PATCH /api/v1/orgs/:id/members/me.
+type UpdateMyPreferences struct {
+	NotifyEvents *bool `json:"notifyEvents" example:"true"`
 }
 
 // Page is a paginated envelope.

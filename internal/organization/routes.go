@@ -26,6 +26,7 @@ import (
 //	POST /api/v1/orgs/:id/members       (member,create)
 //	PATCH /api/v1/orgs/:id/members/:userId  (member,update)
 //	DELETE /api/v1/orgs/:id/members/:userId (service rules)
+//	PATCH /api/v1/orgs/:id/members/me (self preferences)
 //	POST /api/v1/orgs/:id/invites       (invite,create)
 //	GET  /api/v1/orgs/:id/invites       (invite,read)
 //	DELETE /api/v1/orgs/:id/invites/:inviteId (invite,delete)
@@ -47,6 +48,7 @@ func RegisterRoutes(g *gin.RouterGroup, h *handler.Handler, repo *repository.Org
 		scoped.GET("", iam.RequirePermission(e, iam.ObjOrg, iam.ActRead), h.GetOrg)
 		scoped.GET("/members", iam.RequirePermission(e, iam.ObjMember, iam.ActRead), h.ListMembers)
 		scoped.DELETE("/members/:userId", h.RemoveMember)
+		scoped.PATCH("/members/me", h.UpdateMyPreferences)
 
 		scoped.PATCH("", iam.RequirePermission(e, iam.ObjOrg, iam.ActUpdate), h.UpdateOrg)
 		scoped.POST("/members", iam.RequirePermission(e, iam.ObjMember, iam.ActCreate), h.AddMember)

@@ -18,11 +18,12 @@ const (
 	ObjInvite = "invite"
 	ObjEvent  = "event"
 
-	ActRead   = "read"
-	ActCreate = "create"
-	ActUpdate = "update"
-	ActDelete = "delete"
-	ActManage = "manage"
+	ActRead    = "read"
+	ActCreate  = "create"
+	ActUpdate  = "update"
+	ActDelete  = "delete"
+	ActManage  = "manage"
+	ActPublish = "publish"
 )
 
 // SuperAdminRole is the domain-less platform role (g2 grouping).
@@ -45,6 +46,11 @@ func AdminPermissions() []Permission {
 		{ObjInvite, ActRead},
 		{ObjInvite, ActCreate},
 		{ObjInvite, ActDelete},
+		{ObjEvent, ActRead},
+		{ObjEvent, ActCreate},
+		{ObjEvent, ActUpdate},
+		{ObjEvent, ActDelete},
+		{ObjEvent, ActPublish},
 	}
 }
 
@@ -53,6 +59,7 @@ func MemberPermissions() []Permission {
 	return []Permission{
 		{ObjOrg, ActRead},
 		{ObjMember, ActRead},
+		{ObjEvent, ActRead},
 	}
 }
 

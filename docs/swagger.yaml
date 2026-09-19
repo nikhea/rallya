@@ -178,6 +178,134 @@ definitions:
     required:
     - token
     type: object
+  eventdto.CreateEvent:
+    properties:
+      capacity:
+        example: 500
+        minimum: 1
+        type: integer
+      description:
+        example: Three days of music downtown.
+        maxLength: 10000
+        type: string
+      endsAt:
+        example: "2026-08-03T22:00:00Z"
+        type: string
+      location:
+        example: Lagos, Nigeria
+        maxLength: 255
+        type: string
+      slug:
+        example: summer-fest-2026
+        maxLength: 150
+        type: string
+      startsAt:
+        example: "2026-08-01T10:00:00Z"
+        type: string
+      title:
+        example: Summer Fest 2026
+        maxLength: 255
+        minLength: 1
+        type: string
+      venue:
+        example: Central Park Amphitheatre
+        maxLength: 255
+        type: string
+    required:
+    - title
+    type: object
+  eventdto.ErrorAlias:
+    properties:
+      error:
+        example: event not found
+        type: string
+    type: object
+  eventdto.Event:
+    properties:
+      capacity:
+        example: 500
+        type: integer
+      coverUrl:
+        example: /uploads/events/acme/x7f2k9.jpg
+        type: string
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      description:
+        type: string
+      endsAt:
+        example: "2026-08-03T22:00:00Z"
+        type: string
+      id:
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        type: string
+      location:
+        type: string
+      slug:
+        example: summer-fest-2026
+        type: string
+      startsAt:
+        example: "2026-08-01T10:00:00Z"
+        type: string
+      status:
+        example: PUBLISHED
+        type: string
+      title:
+        example: Summer Fest 2026
+        type: string
+      updatedAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      venue:
+        type: string
+    type: object
+  eventdto.EventsPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/eventdto.Event'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  eventdto.MessageAlias:
+    properties:
+      message:
+        example: Event published
+        type: string
+    type: object
+  eventdto.UpdateEvent:
+    properties:
+      capacity:
+        minimum: 1
+        type: integer
+      clearCover:
+        example: false
+        type: boolean
+      description:
+        maxLength: 10000
+        type: string
+      endsAt:
+        type: string
+      location:
+        maxLength: 255
+        type: string
+      slug:
+        example: summer-fest
+        maxLength: 150
+        type: string
+      startsAt:
+        type: string
+      title:
+        example: Summer Fest 2026
+        maxLength: 255
+        minLength: 1
+        type: string
+      venue:
+        maxLength: 255
+        type: string
+    type: object
   orgdto.AcceptInvite:
     properties:
       token:
@@ -349,6 +477,12 @@ definitions:
         type: string
     required:
     - role
+    type: object
+  orgdto.UpdateMyPreferences:
+    properties:
+      notifyEvents:
+        example: true
+        type: boolean
     type: object
   orgdto.UpdateOrg:
     properties:
@@ -713,6 +847,92 @@ paths:
       summary: Verify email address
       tags:
       - auth
+  /events:
+    get:
+      description: Public discovery across orgs, filterable and paginated.
+      parameters:
+      - description: Org slug filter
+        example: acme
+        in: query
+        name: org
+        type: string
+      - description: Status filter
+        example: PUBLISHED
+        in: query
+        name: status
+        type: string
+      - description: RFC3339 start
+        example: "2026-01-01T00:00:00Z"
+        in: query
+        name: from
+        type: string
+      - description: RFC3339 end
+        example: "2026-12-31T23:59:59Z"
+        in: query
+        name: to
+        type: string
+      - description: Title search
+        example: fest
+        in: query
+        name: q
+        type: string
+      - description: starts|created
+        example: starts
+        in: query
+        name: sort
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.EventsPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      summary: List published events
+      tags:
+      - events
+  /events/{id}:
+    get:
+      description: Public detail by UUID. Drafts/cancelled return 404.
+      parameters:
+      - description: Event UUID
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      summary: Get published event
+      tags:
+      - events
   /orgs:
     get:
       description: Orgs the caller belongs to, with roles. Used for org switching
@@ -880,6 +1100,422 @@ paths:
       summary: Update organization
       tags:
       - orgs
+  /orgs/{id}/events:
+    get:
+      description: Paginated, filterable; includes drafts for members.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: DRAFT/PUBLISHED/CANCELLED
+        example: PUBLISHED
+        in: query
+        name: status
+        type: string
+      - description: RFC3339 start
+        example: "2026-01-01T00:00:00Z"
+        in: query
+        name: from
+        type: string
+      - description: RFC3339 end
+        example: "2026-12-31T23:59:59Z"
+        in: query
+        name: to
+        type: string
+      - description: Title search
+        example: fest
+        in: query
+        name: q
+        type: string
+      - description: starts|created
+        example: starts
+        in: query
+        name: sort
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.EventsPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List org events
+      tags:
+      - events
+    post:
+      consumes:
+      - application/json
+      description: Creates a DRAFT event under the org; slug auto-uniquifies per org.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/eventdto.CreateEvent'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create event
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}:
+    delete:
+      description: Hard delete with cover cleanup.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Delete event
+      tags:
+      - events
+    get:
+      description: Drafts require membership; :eventId accepts UUID or slug.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get org event
+      tags:
+      - events
+    patch:
+      consumes:
+      - application/json
+      description: Field updates; status changes go through publish/unpublish/cancel.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/eventdto.UpdateEvent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update event
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/cancel:
+    post:
+      description: PUBLISHED → CANCELLED (terminal).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Cancel event
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/cover:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Multipart file (jpeg/png/webp, 5MB max, content-sniffed). Replaces
+        existing cover.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Image file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Upload event cover
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/publish:
+    post:
+      description: DRAFT → PUBLISHED; queues announcements to opted-in members.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Publish event
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/unpublish:
+    post:
+      description: PUBLISHED → DRAFT.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Unpublish event
+      tags:
+      - events
   /orgs/{id}/invites:
     get:
       parameters:
@@ -1189,6 +1825,47 @@ paths:
       security:
       - BearerAuth: []
       summary: Change member role
+      tags:
+      - orgs
+  /orgs/{id}/members/me:
+    patch:
+      consumes:
+      - application/json
+      description: Opt in or out of publish announcement emails for this org.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Preference payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.UpdateMyPreferences'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Preferences updated
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update my announcement preference
       tags:
       - orgs
   /orgs/invites/accept:

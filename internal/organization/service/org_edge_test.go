@@ -188,3 +188,38 @@ func TestAutoSlugUniqueness(t *testing.T) {
 		t.Fatalf("expected ErrSlugTaken, got %v", err)
 	}
 }
+
+func TestUpdateMyPreferences(t *testing.T) {
+	f := newOrgFixture(t)
+	d, _ := f.svc.CreateOrg(f.owner.ID, "Acme", "", "")
+	slug := d.Slug
+
+	// Stranger cannot set prefs.
+	if err := f.svc.UpdateMyPreferences(f.stranger.ID, slug, false); !errors.Is(err, service.ErrOrgNotFound) {
+		t.Fatalf("expected ErrOrgNotFound, got %v", err)
+	}
+	// Owner opts out.
+	if err := f.svc.UpdateMyPreferences(f.owner.ID, slug, false); err != nil {
+		t.Fatalf("opt out: %v", err)
+	}
+	var oid uuid.UUID
+	oid, err := f.svc.ResolveOrgID(slug)
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	got, err := f.svc.NotifyTargets(oid)
+	if err != nil {
+		t.Fatalf("targets: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected no targets after opt-out, got %+v", got)
+	}
+	// Opt back in.
+	if err := f.svc.UpdateMyPreferences(f.owner.ID, slug, true); err != nil {
+		t.Fatalf("opt in: %v", err)
+	}
+	got, err = f.svc.NotifyTargets(oid)
+	if err != nil || len(got) != 1 || got[0].Email != "owner@test.com" || got[0].Name != "Owner" {
+		t.Fatalf("targets: %+v %v", got, err)
+	}
+}

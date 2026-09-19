@@ -104,6 +104,13 @@ func (r *OrgRepository) UpdateMemberRole(db *gorm.DB, orgID, userID uuid.UUID, r
 		Updates(map[string]any{"role": role, "updated_at": at}).Error
 }
 
+// SetNotifyEvents updates the announcement preference.
+func (r *OrgRepository) SetNotifyEvents(db *gorm.DB, orgID, userID uuid.UUID, notify bool, at time.Time) error {
+	return dbOr(r, db).Model(&model.Membership{}).
+		Where("organization_id = ? AND user_id = ?", orgID, userID).
+		Updates(map[string]any{"notify_events": notify, "updated_at": at}).Error
+}
+
 // DeleteMembership removes one membership.
 func (r *OrgRepository) DeleteMembership(db *gorm.DB, orgID, userID uuid.UUID) error {
 	return dbOr(r, db).Delete(&model.Membership{},

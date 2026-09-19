@@ -150,3 +150,60 @@ func toMember(u *model.User, role orgmodel.MemberRole, joinedAt time.Time) *orgd
 		JoinedAt: orgutils.FormatTime(joinedAt),
 	}
 }
+
+// UpdateMyPreferences flips the caller's announcement opt-in (any MEMBER).
+func (s *OrgService) UpdateMyPreferences(userID uuid.UUID, ref string, notify bool) error {
+	o, _, err := s.membership(userID, ref)
+	if err != nil {
+		return err
+	}
+	return s.repo.SetNotifyEvents(nil, o.ID, userID, notify, time.Now())
+}
+
+// ResolveOrgID resolves a UUID-or-slug ref to an org ID (no membership
+// check; backs the event domain's OrgResolver).
+func (s *OrgService) ResolveOrgID(ref string) (uuid.UUID, error) {
+	o, err := s.resolveOrg(ref)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return o.ID, nil
+}
+
+// IsMember reports membership (backs the event domain's OrgResolver).
+func (s *OrgService) IsMember(userID, orgID uuid.UUID) bool {
+	_, err := s.repo.GetMembership(orgID, userID)
+	return err == nil
+}
+
+// OrgName returns the org display name (backs event announcements).
+func (s *OrgService) OrgName(orgID uuid.UUID) (string, error) {
+	o, err := s.repo.GetOrgByID(orgID)
+	if err != nil {
+		return "", err
+	}
+	return o.Name, nil
+}
+
+// NotifyTargets returns opted-in members with display data for event
+// announcements (backs the event domain's OrgResolver).
+func (s *OrgService) NotifyTargets(orgID uuid.UUID) ([]orgdto.MemberNotify, error) {
+	ms, _, err := s.repo.ListMemberships(orgID, 100000, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]orgdto.MemberNotify, 0, len(ms))
+	for _, m := range ms {
+		if !m.NotifyEvents {
+			continue
+		}
+		u, err := s.users.GetUserByID(m.UserID)
+		if err != nil {
+			continue
+		}
+		out = append(out, orgdto.MemberNotify{
+			UserID: u.ID, Email: u.Email, Name: orgutils.DisplayNameOf(u),
+		})
+	}
+	return out, nil
+}

@@ -21,6 +21,11 @@ import (
 	"github.com/nikhea/rallya/internal/auth/handler"
 	"github.com/nikhea/rallya/internal/auth/repository"
 	"github.com/nikhea/rallya/internal/auth/service"
+	event "github.com/nikhea/rallya/internal/event"
+	"github.com/nikhea/rallya/internal/event/cover"
+	eventhandler "github.com/nikhea/rallya/internal/event/handler"
+	eventrepository "github.com/nikhea/rallya/internal/event/repository"
+	eventservice "github.com/nikhea/rallya/internal/event/service"
 	"github.com/nikhea/rallya/internal/iam"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 	organization "github.com/nikhea/rallya/internal/organization"
@@ -125,6 +130,21 @@ func main() {
 		orgSvc.SetPolicySeeder(iam.NewOrgPolicySeeder(enforcer))
 		orgHandler := orghandler.NewHandler(orgSvc)
 		organization.RegisterRoutes(api.Group("/orgs"), orgHandler, orgRepo, authRepo, enforcer)
+
+		// Events domain: org-scoped CRUD + publish + covers.
+		eventRepo := eventrepository.NewEventRepository(config.DB)
+		eventSvc := eventservice.NewEventService(eventRepo, orgSvc)
+		eventSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		eventSvc.SetCoverStorage(cover.NewLocal("./uploads"))
+		eventHandler := eventhandler.NewHandler(eventSvc)
+		event.RegisterRoutes(api, eventHandler, authRepo, orgRepo, enforcer)
+
+		// Cover images + uploads served read-only (local disk for MVP).
+		if err := os.MkdirAll("./uploads", 0o755); err != nil {
+			slog.Error("Uploads dir failed", "error", err)
+			os.Exit(1)
+		}
+		router.Static("/uploads", "./uploads")
 
 		// GET /auth/me embeds org context (nil-safe when unwired).
 		authHandler.SetMembershipLister(orgSvc)

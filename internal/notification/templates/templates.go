@@ -13,10 +13,11 @@ import (
 var FS embed.FS
 
 var (
-	verifyTmpl  = template.Must(template.ParseFS(FS, "verify_email.html"))
-	resetTmpl   = template.Must(template.ParseFS(FS, "reset_password.html"))
-	welcomeTmpl = template.Must(template.ParseFS(FS, "welcome_email.html"))
-	inviteTmpl  = template.Must(template.ParseFS(FS, "org_invite_email.html"))
+	verifyTmpl    = template.Must(template.ParseFS(FS, "verify_email.html"))
+	resetTmpl     = template.Must(template.ParseFS(FS, "reset_password.html"))
+	welcomeTmpl   = template.Must(template.ParseFS(FS, "welcome_email.html"))
+	inviteTmpl    = template.Must(template.ParseFS(FS, "org_invite_email.html"))
+	publishedTmpl = template.Must(template.ParseFS(FS, "event_published_email.html"))
 )
 
 // VerifyEmailData feeds verify_email.html (OTP code + link button).
@@ -49,6 +50,15 @@ type OrgInviteData struct {
 	Role        string
 	InviterName string
 	InviteLink  string
+}
+
+// EventPublishedData feeds event_published_email.html.
+type EventPublishedData struct {
+	AppName    string
+	Name       string
+	OrgName    string
+	EventTitle string
+	EventLink  string
 }
 
 // Rendered is a subject + multipart body pair.
@@ -114,6 +124,19 @@ func RenderOrgInvite(d OrgInviteData) Rendered {
 	return Rendered{
 		Subject: fmt.Sprintf("You are invited to %s — %s", d.OrgName, d.AppName),
 		HTML:    render(inviteTmpl, d),
+		Text:    text,
+	}
+}
+
+// RenderEventPublished builds the publish announcement email.
+func RenderEventPublished(d EventPublishedData) Rendered {
+	text := fmt.Sprintf("Hi %s,\n\n%s just published %s.\n\n"+
+		"View it here:\n%s\n\n"+
+		"Turn off announcements in your organization settings to stop these.\n",
+		d.Name, d.OrgName, d.EventTitle, d.EventLink)
+	return Rendered{
+		Subject: fmt.Sprintf("%s is live — %s", d.EventTitle, d.AppName),
+		HTML:    render(publishedTmpl, d),
 		Text:    text,
 	}
 }

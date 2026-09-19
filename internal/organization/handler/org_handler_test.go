@@ -324,3 +324,24 @@ func TestHTTPOrgEdgeCases(t *testing.T) {
 		t.Fatalf("get after delete: got %d", w.Code)
 	}
 }
+
+func TestHTTPMyPreferences(t *testing.T) {
+	f := newOrgFixture(t)
+
+	w := orgRequest(t, f, "POST", "/api/v1/orgs", `{"name":"Acme"}`, "owner@test.com")
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: got %d", w.Code)
+	}
+	// Missing field -> 400.
+	if w := orgRequest(t, f, "PATCH", "/api/v1/orgs/acme/members/me", `{}`, "owner@test.com"); w.Code != http.StatusBadRequest {
+		t.Fatalf("empty: got %d", w.Code)
+	}
+	// Opt out -> 200.
+	if w := orgRequest(t, f, "PATCH", "/api/v1/orgs/acme/members/me", `{"notifyEvents":false}`, "owner@test.com"); w.Code != http.StatusOK {
+		t.Fatalf("opt out: got %d (%s)", w.Code, w.Body.String())
+	}
+	// Stranger -> 404.
+	if w := orgRequest(t, f, "PATCH", "/api/v1/orgs/acme/members/me", `{"notifyEvents":true}`, "stranger@test.com"); w.Code != http.StatusNotFound {
+		t.Fatalf("stranger: got %d", w.Code)
+	}
+}

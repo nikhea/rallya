@@ -71,11 +71,14 @@ func (o *Organization) BeforeCreate(_ *gorm.DB) error {
 type Membership struct {
 	ID uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 
-	OrganizationID uuid.UUID `gorm:"type:uuid;index;not null" json:"organizationId"`
+	OrganizationID uuid.UUID `gorm:"type:uuid;index;not null;uniqueIndex:idx_memberships_org_user" json:"organizationId"`
 
-	UserID uuid.UUID `gorm:"type:uuid;index;not null" json:"userId"`
+	UserID uuid.UUID `gorm:"type:uuid;index;not null;uniqueIndex:idx_memberships_org_user" json:"userId"`
 
 	Role MemberRole `gorm:"size:20;not null;default:MEMBER" json:"role"`
+
+	// NotifyEvents opts into publish announcements (default true).
+	NotifyEvents bool `gorm:"not null;default:true" json:"notifyEvents"`
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`

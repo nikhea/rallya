@@ -67,6 +67,18 @@ type SendOrgInviteEmailArgs struct {
 
 func (SendOrgInviteEmailArgs) Kind() string { return "send_org_invite_email" }
 
+// SendEventPublishedEmailArgs renders the publish announcement email.
+type SendEventPublishedEmailArgs struct {
+	EventID    uuid.UUID `json:"eventId"`
+	EventTitle string    `json:"eventTitle"`
+	OrgName    string    `json:"orgName"`
+	Email      string    `json:"email"`
+	Name       string    `json:"name"`
+	EventLink  string    `json:"eventLink"`
+}
+
+func (SendEventPublishedEmailArgs) Kind() string { return "send_event_published_email" }
+
 // ---------- workers ----------
 
 // VerificationEmailWorker sends the verify email.
@@ -138,6 +150,24 @@ func (w *OrgInviteEmailWorker) Work(ctx context.Context, job *river.Job[SendOrgI
 	return nil
 }
 
+// EventPublishedEmailWorker sends the publish announcement email.
+type EventPublishedEmailWorker struct {
+	river.WorkerDefaults[SendEventPublishedEmailArgs]
+}
+
+func (w *EventPublishedEmailWorker) Work(ctx context.Context, job *river.Job[SendEventPublishedEmailArgs]) error {
+	a := job.Args
+	r := templates.RenderEventPublished(templates.EventPublishedData{
+		AppName: notification.AppName(), Name: a.Name, OrgName: a.OrgName,
+		EventTitle: a.EventTitle, EventLink: a.EventLink,
+	})
+	slog.Info("sending event published email", "to", a.Email, "event", a.EventID, "job", job.ID)
+	if err := mailer.Send(a.Email, r.Subject, r.Text, r.HTML); err != nil {
+		return err
+	}
+	return nil
+}
+
 // AddAll registers every email worker. Panics on misconfiguration
 // (fail-fast at boot, per River convention).
 func AddAll(workers *river.Workers) {
@@ -145,6 +175,7 @@ func AddAll(workers *river.Workers) {
 	river.AddWorker(workers, &PasswordResetEmailWorker{})
 	river.AddWorker(workers, &WelcomeEmailWorker{})
 	river.AddWorker(workers, &OrgInviteEmailWorker{})
+	river.AddWorker(workers, &EventPublishedEmailWorker{})
 }
 
 // ---------- enqueue contract ----------

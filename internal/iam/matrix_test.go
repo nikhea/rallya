@@ -18,10 +18,12 @@ var expectedGrants = map[orgmodel.MemberRole]map[string]map[string]bool{
 		iam.ObjOrg:    {"read": true, "update": true},
 		iam.ObjMember: {"read": true, "create": true, "delete": true},
 		iam.ObjInvite: {"read": true, "create": true, "delete": true},
+		iam.ObjEvent:  {"read": true, "create": true, "update": true, "delete": true, "publish": true},
 	},
 	orgmodel.MemberRoleMember: {
 		iam.ObjOrg:    {"read": true},
 		iam.ObjMember: {"read": true},
+		iam.ObjEvent:  {"read": true},
 	},
 }
 

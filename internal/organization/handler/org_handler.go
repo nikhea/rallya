@@ -425,6 +425,35 @@ func (h *Handler) DeclineInvite(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Invite declined"})
 }
 
+// UpdateMyPreferences PATCH /api/v1/orgs/:id/members/me (self, MEMBER+).
+//
+// @Summary		Update my announcement preference
+// @Description	Opt in or out of publish announcement emails for this org.
+// @Tags			orgs
+// @Accept			json
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id		path		string							true	"Org UUID or slug"
+// @Param			request	body		orgdto.UpdateMyPreferences	true	"Preference payload"
+// @Success		200		{object}	orgdto.MessageAlias	"Preferences updated"
+// @Failure		400		{object}	orgdto.ErrorAlias
+// @Failure		401		{object}	orgdto.ErrorAlias
+// @Failure		404		{object}	orgdto.ErrorAlias
+// @Router			/orgs/{id}/members/me [patch]
+func (h *Handler) UpdateMyPreferences(c *gin.Context) {
+	uid, _ := authhandler.UserFromContext(c)
+	var in orgdto.UpdateMyPreferences
+	if err := c.ShouldBindJSON(&in); err != nil || in.NotifyEvents == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "notifyEvents is required"})
+		return
+	}
+	if err := h.svc.UpdateMyPreferences(uid, OrgRef(c), *in.NotifyEvents); err != nil {
+		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Preferences updated"})
+}
+
 // ---------- mapping + status ----------
 
 func orgErrorStatus(err error) int {
