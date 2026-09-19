@@ -1,0 +1,35 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/grip
+/tmp/main
+
+# Go build / test artifacts
+*.out
+*.test
+coverage.txt
+coverage.html
+
+# Air live-reload
+tmp/
+
+# Uploaded files (avatars, served at /uploads)
+uploads/
+
+# Env with secrets (DATABASE_URL)
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Tooling local state
+.opencode/
