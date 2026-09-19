@@ -207,3 +207,13 @@ func (s *OrgService) NotifyTargets(orgID uuid.UUID) ([]orgdto.MemberNotify, erro
 	}
 	return out, nil
 }
+
+// CanManage reports ADMIN-or-OWNER membership (internal cross-domain use,
+// e.g. order support actions). False on any error or lesser role.
+func (s *OrgService) CanManage(userID, orgID uuid.UUID) bool {
+	m, err := s.repo.GetMembership(orgID, userID)
+	if err != nil {
+		return false
+	}
+	return m.Role.Level() >= orgmodel.MemberRoleAdmin.Level()
+}

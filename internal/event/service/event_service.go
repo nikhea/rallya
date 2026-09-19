@@ -756,3 +756,15 @@ func toEvent(e *model.Event) *eventdto.Event {
 		CreatedAt: utils.FormatTime(e.CreatedAt), UpdatedAt: utils.FormatTime(e.UpdatedAt),
 	}
 }
+
+// OrgOf returns the owning org of an event (internal cross-domain use).
+func (s *EventService) OrgOf(eventID uuid.UUID) (uuid.UUID, error) {
+	e, err := s.repo.GetEventByID(eventID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return uuid.Nil, ErrEventNotFound
+		}
+		return uuid.Nil, err
+	}
+	return e.OrganizationID, nil
+}

@@ -263,24 +263,33 @@ func (s *TicketService) Reserve(typeID uuid.UUID, n int) error {
 		return ErrInvalidQty
 	}
 	return s.repo.DB().Transaction(func(tx *gorm.DB) error {
-		t, err := s.repo.LockType(tx, typeID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrTicketNotFound
-			}
-			return err
-		}
-		if t.Status != model.TicketStatusActive {
-			return ErrNotOnSale
-		}
-		if t.MaxPerOrder != nil && n > *t.MaxPerOrder {
-			return ErrTooMany
-		}
-		if t.QuantitySold+n > t.QuantityTotal {
-			return ErrSoldOut
-		}
-		return s.repo.AddSold(tx, typeID, n)
+		return s.ReserveTx(tx, typeID, n)
 	})
+}
+
+// ReserveTx is Reserve joined to the caller's tx (orders create the row
+// atomically with the hold — no phantom inventory on failure).
+func (s *TicketService) ReserveTx(tx *gorm.DB, typeID uuid.UUID, n int) error {
+	if n <= 0 {
+		return ErrInvalidQty
+	}
+	t, err := s.repo.LockType(tx, typeID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTicketNotFound
+		}
+		return err
+	}
+	if t.Status != model.TicketStatusActive {
+		return ErrNotOnSale
+	}
+	if t.MaxPerOrder != nil && n > *t.MaxPerOrder {
+		return ErrTooMany
+	}
+	if t.QuantitySold+n > t.QuantityTotal {
+		return ErrSoldOut
+	}
+	return s.repo.AddSold(tx, typeID, n)
 }
 
 // Release returns n units (refunds/cancellations later).
@@ -289,18 +298,26 @@ func (s *TicketService) Release(typeID uuid.UUID, n int) error {
 		return ErrInvalidQty
 	}
 	return s.repo.DB().Transaction(func(tx *gorm.DB) error {
-		t, err := s.repo.LockType(tx, typeID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrTicketNotFound
-			}
-			return err
-		}
-		if t.QuantitySold-n < 0 {
-			return ErrInvalidQty
-		}
-		return s.repo.AddSold(tx, typeID, -n)
+		return s.ReleaseTx(tx, typeID, n)
 	})
+}
+
+// ReleaseTx is Release joined to the caller's tx.
+func (s *TicketService) ReleaseTx(tx *gorm.DB, typeID uuid.UUID, n int) error {
+	if n <= 0 {
+		return ErrInvalidQty
+	}
+	t, err := s.repo.LockType(tx, typeID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTicketNotFound
+		}
+		return err
+	}
+	if t.QuantitySold-n < 0 {
+		return ErrInvalidQty
+	}
+	return s.repo.AddSold(tx, typeID, -n)
 }
 
 // ---------- availability ----------
@@ -375,7 +392,7 @@ func toTicketType(t *model.TicketType, published bool, now time.Time) *ticketdto
 		reasonPtr = &reason
 	}
 	return &ticketdto.TicketType{
-		ID: t.ID.String(), Name: t.Name, Description: t.Description,
+		ID: t.ID.String(), EventID: t.EventID.String(), Name: t.Name, Description: t.Description,
 		PriceCents: t.PriceCents, Currency: t.Currency,
 		QuantityTotal: t.QuantityTotal, QuantitySold: t.QuantitySold,
 		Remaining: remaining, ForSale: forSale, UnavailableReason: reasonPtr, MaxPerOrder: t.MaxPerOrder,
@@ -384,4 +401,21 @@ func toTicketType(t *model.TicketType, published bool, now time.Time) *ticketdto
 		Status:       string(t.Status), SoldOut: t.SoldOut(),
 		CreatedAt: utils.FormatTime(t.CreatedAt),
 	}
+}
+
+// InspectType returns a type with live published context for internal
+// consumers (orders). No guards — callers enforce their own rules.
+func (s *TicketService) InspectType(typeID uuid.UUID) (*ticketdto.TicketType, bool, error) {
+	t, err := s.repo.GetTypeByID(typeID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, false, ErrTicketNotFound
+		}
+		return nil, false, err
+	}
+	published := false
+	if _, err := s.events.GetPublicEvent(t.EventID); err == nil {
+		published = true
+	}
+	return toTicketType(t, published, time.Now()), published, nil
 }

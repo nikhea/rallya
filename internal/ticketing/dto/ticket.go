@@ -27,6 +27,7 @@ type UpdateTicket struct {
 // TicketType is the public ticket shape with live availability.
 type TicketType struct {
 	ID                string  `json:"id" example:"6f708192-0314-2b3c-4d5e-6f708192a3b4"`
+	EventID           string  `json:"eventId" example:"4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d"`
 	Name              string  `json:"name" example:"General Admission"`
 	Description       *string `json:"description,omitempty"`
 	PriceCents        int     `json:"priceCents" example:"2500"`

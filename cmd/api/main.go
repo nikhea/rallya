@@ -28,6 +28,11 @@ import (
 	eventservice "github.com/nikhea/rallya/internal/event/service"
 	"github.com/nikhea/rallya/internal/iam"
 	"github.com/nikhea/rallya/internal/notification/jobs"
+	order "github.com/nikhea/rallya/internal/order"
+	orderhandler "github.com/nikhea/rallya/internal/order/handler"
+	orderjobs "github.com/nikhea/rallya/internal/order/jobs"
+	orderrepository "github.com/nikhea/rallya/internal/order/repository"
+	orderservice "github.com/nikhea/rallya/internal/order/service"
 	organization "github.com/nikhea/rallya/internal/organization"
 	orghandler "github.com/nikhea/rallya/internal/organization/handler"
 	orgrepository "github.com/nikhea/rallya/internal/organization/repository"
@@ -156,6 +161,18 @@ func main() {
 		ticketing.RegisterRoutes(api, ticketHandler, authRepo, orgRepo, enforcer)
 		// Org delete cleans event assets via the event seam (rows cascade).
 		orgSvc.SetAssetCleaner(eventSvc)
+
+		// Orders domain: claims against ticket inventory + hold sweeper.
+		orderRepo := orderrepository.NewOrderRepository(config.DB)
+		orderSvc := orderservice.NewOrderService(orderRepo, ticketSvc, eventSvc, orgSvc)
+		orderHandler := orderhandler.NewHandler(orderSvc)
+		order.RegisterRoutes(api, orderHandler, authRepo)
+		river.AddWorker(workers, &orderjobs.SweepExpiredOrdersWorker{Svc: orderSvc})
+		riverClient.PeriodicJobs().Add(river.NewPeriodicJob(
+			river.PeriodicInterval(5*time.Minute),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return orderjobs.SweepExpiredOrdersArgs{}, nil
+			}, nil))
 
 		// Cover images + uploads served read-only (local disk for MVP).
 		if err := os.MkdirAll("./uploads", 0o755); err != nil {

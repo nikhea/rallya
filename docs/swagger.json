@@ -640,6 +640,77 @@
                 }
             }
         },
+        "/events/{id}/orders": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Claims inventory atomically; free orders confirm immediately, priced wait for payments. Idempotent via idempotencyKey.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Create order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d",
+                        "description": "Event UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Order payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.CreateOrder"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.Order"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Sold out",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
         "/events/{id}/tickets": {
             "get": {
                 "description": "Active types with live availability. No purchase flow yet (orders module).",
@@ -677,6 +748,151 @@
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/mine": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Caller history, newest first, paginated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "List my orders",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.OrdersPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Owners see their own; org admins via support path. Others get 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Get order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.Order"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Releases held inventory. Terminal states rejected. Priced refunds arrive with payments.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Cancel order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.Order"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
                         }
                     }
                 }
@@ -3349,6 +3565,94 @@
                 }
             }
         },
+        "orderdto.CreateOrder": {
+            "type": "object",
+            "required": [
+                "quantity",
+                "ticketTypeId"
+            ],
+            "properties": {
+                "idempotencyKey": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "order-req-001"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 2
+                },
+                "ticketTypeId": {
+                    "type": "string",
+                    "example": "6f708192-0314-2b3c-4d5e-6f708192a3b4"
+                }
+            }
+        },
+        "orderdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "sold out"
+                }
+            }
+        },
+        "orderdto.Order": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "eventId": {
+                    "type": "string",
+                    "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:15:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7a8192a3-1425-3c4d-5e6f-708192a3b4c5"
+                },
+                "priceCents": {
+                    "type": "integer",
+                    "example": 5000
+                },
+                "quantity": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "status": {
+                    "type": "string",
+                    "example": "CONFIRMED"
+                },
+                "ticketTypeId": {
+                    "type": "string",
+                    "example": "6f708192-0314-2b3c-4d5e-6f708192a3b4"
+                }
+            }
+        },
+        "orderdto.OrdersPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orderdto.Order"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
         "orgdto.AcceptInvite": {
             "type": "object",
             "required": [
@@ -3699,6 +4003,10 @@
                 },
                 "description": {
                     "type": "string"
+                },
+                "eventId": {
+                    "type": "string",
+                    "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d"
                 },
                 "forSale": {
                     "type": "boolean",

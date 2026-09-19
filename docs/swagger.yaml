@@ -343,6 +343,69 @@ definitions:
         maxLength: 255
         type: string
     type: object
+  orderdto.CreateOrder:
+    properties:
+      idempotencyKey:
+        example: order-req-001
+        maxLength: 100
+        type: string
+      quantity:
+        example: 2
+        minimum: 1
+        type: integer
+      ticketTypeId:
+        example: 6f708192-0314-2b3c-4d5e-6f708192a3b4
+        type: string
+    required:
+    - quantity
+    - ticketTypeId
+    type: object
+  orderdto.ErrorAlias:
+    properties:
+      error:
+        example: sold out
+        type: string
+    type: object
+  orderdto.Order:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      currency:
+        example: USD
+        type: string
+      eventId:
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        type: string
+      expiresAt:
+        example: "2026-09-19T12:15:00Z"
+        type: string
+      id:
+        example: 7a8192a3-1425-3c4d-5e6f-708192a3b4c5
+        type: string
+      priceCents:
+        example: 5000
+        type: integer
+      quantity:
+        example: 2
+        type: integer
+      status:
+        example: CONFIRMED
+        type: string
+      ticketTypeId:
+        example: 6f708192-0314-2b3c-4d5e-6f708192a3b4
+        type: string
+    type: object
+  orderdto.OrdersPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/orderdto.Order'
+        type: array
+      total:
+        example: 3
+        type: integer
+    type: object
   orgdto.AcceptInvite:
     properties:
       token:
@@ -594,6 +657,9 @@ definitions:
         example: USD
         type: string
       description:
+        type: string
+      eventId:
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
         type: string
       forSale:
         example: true
@@ -1103,6 +1169,53 @@ paths:
       summary: Get published event
       tags:
       - events
+  /events/{id}/orders:
+    post:
+      consumes:
+      - application/json
+      description: Claims inventory atomically; free orders confirm immediately, priced
+        wait for payments. Idempotent via idempotencyKey.
+      parameters:
+      - description: Event UUID
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Order payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orderdto.CreateOrder'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/orderdto.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "409":
+          description: Sold out
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create order
+      tags:
+      - orders
   /events/{id}/tickets:
     get:
       description: Active types with live availability. No purchase flow yet (orders
@@ -1132,6 +1245,99 @@ paths:
       summary: List tickets for sale
       tags:
       - tickets
+  /orders/{id}:
+    get:
+      description: Owners see their own; org admins via support path. Others get 404.
+      parameters:
+      - description: Order UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orderdto.Order'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get order
+      tags:
+      - orders
+  /orders/{id}/cancel:
+    post:
+      description: Releases held inventory. Terminal states rejected. Priced refunds
+        arrive with payments.
+      parameters:
+      - description: Order UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orderdto.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Cancel order
+      tags:
+      - orders
+  /orders/mine:
+    get:
+      description: Caller history, newest first, paginated.
+      parameters:
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orderdto.OrdersPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List my orders
+      tags:
+      - orders
   /orgs:
     get:
       description: Orgs the caller belongs to, with roles. Used for org switching
