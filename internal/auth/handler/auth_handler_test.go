@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,12 +10,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	auth "github.com/nikhea/rallya/internal/auth"
 	"github.com/nikhea/rallya/internal/auth/dto"
 	"github.com/nikhea/rallya/internal/auth/handler"
 	"github.com/nikhea/rallya/internal/auth/model"
 	"github.com/nikhea/rallya/internal/auth/repository"
+	"github.com/nikhea/rallya/internal/auth/service"
 	"github.com/nikhea/rallya/internal/auth/testutil"
 	"github.com/nikhea/rallya/internal/auth/token"
 )
@@ -24,6 +27,8 @@ func init() { gin.SetMode(gin.TestMode) }
 type fixture struct {
 	router *gin.Engine
 	repo   *repository.AuthRepository
+	svc    *service.AuthService
+	h      *handler.Handler
 }
 
 func newFixture(t *testing.T) fixture {
@@ -32,7 +37,7 @@ func newFixture(t *testing.T) fixture {
 	h := handler.NewHandler(svc)
 	r := gin.New()
 	auth.RegisterRoutes(r.Group("/api/v1/auth"), h, repo)
-	return fixture{router: r, repo: repo}
+	return fixture{router: r, repo: repo, svc: svc, h: h}
 }
 
 func doRequest(t *testing.T, f fixture, method, path, body, authHeader string) *httptest.ResponseRecorder {
@@ -262,5 +267,137 @@ func TestHTTPVerifyCodeFlow(t *testing.T) {
 		`{"email":"otp@test.com","password":"Str0ngP@ssw0rd!"}`, "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("login: got %d (%s)", w.Code, w.Body.String())
+	}
+}
+
+// stubLister fakes the organization MembershipLister seam.
+type stubLister struct {
+	orgs []dto.OrgMembership
+	err  error
+}
+
+func (s stubLister) ListMemberships(_ uuid.UUID) ([]dto.OrgMembership, error) {
+	return s.orgs, s.err
+}
+
+func TestHTTPMeEmbedsOrganizations(t *testing.T) {
+	f := newFixture(t)
+
+	// Register + verify + login to get a token.
+	if w := doRequest(t, f, "POST", "/api/v1/auth/register",
+		`{"email":"orgs@test.com","password":"Str0ngP@ssw0rd!","firstName":"Orgs"}`, ""); w.Code != http.StatusCreated {
+		t.Fatalf("register: got %d", w.Code)
+	}
+	u, err := f.repo.GetUserByEmail("orgs@test.com")
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	const raw = "orgs-verify-token"
+	if err := f.repo.CreateEmailVerification(nil, &model.EmailVerification{
+		UserID: u.ID, TokenHash: token.HashToken(raw), ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if w := doRequest(t, f, "POST", "/api/v1/auth/verify-email",
+		`{"token":"`+raw+`"}`, ""); w.Code != http.StatusOK {
+		t.Fatalf("verify: got %d", w.Code)
+	}
+	w := doRequest(t, f, "POST", "/api/v1/auth/login",
+		`{"email":"orgs@test.com","password":"Str0ngP@ssw0rd!"}`, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("login: got %d", w.Code)
+	}
+	var pair dto.TokenPair
+	if err := json.Unmarshal(w.Body.Bytes(), &pair); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	// Without lister: no organizations key.
+	w = doRequest(t, f, "GET", "/api/v1/auth/me", "", "Bearer "+pair.AccessToken)
+	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), "organizations") {
+		t.Fatalf("expected no orgs field, got %d (%s)", w.Code, w.Body.String())
+	}
+
+	// With lister: embedded.
+	f.h.SetMembershipLister(stubLister{orgs: []dto.OrgMembership{
+		{ID: "org-1", Slug: "acme", Name: "Acme", Role: "OWNER"},
+	}})
+	w = doRequest(t, f, "GET", "/api/v1/auth/me", "", "Bearer "+pair.AccessToken)
+	if w.Code != http.StatusOK {
+		t.Fatalf("me: got %d", w.Code)
+	}
+	var me dto.Me
+	if err := json.Unmarshal(w.Body.Bytes(), &me); err != nil {
+		t.Fatalf("decode me: %v", err)
+	}
+	if len(me.Organizations) != 1 || me.Organizations[0].Slug != "acme" {
+		t.Fatalf("unexpected orgs: %+v", me.Organizations)
+	}
+
+	// Lister error: still 200, field omitted.
+	f.h.SetMembershipLister(stubLister{err: errors.New("boom")})
+	w = doRequest(t, f, "GET", "/api/v1/auth/me", "", "Bearer "+pair.AccessToken)
+	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), "organizations") {
+		t.Fatalf("expected graceful omit, got %d (%s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHTTPAuthEdgeCases(t *testing.T) {
+	f := newFixture(t)
+
+	if w := doRequest(t, f, "POST", "/api/v1/auth/register",
+		`{"email":"edge@test.com","password":"Str0ngP@ssw0rd!"}`, ""); w.Code != http.StatusCreated {
+		t.Fatalf("register: got %d", w.Code)
+	}
+	// Resend immediately -> 429 (throttled by register's own verification row).
+	if w := doRequest(t, f, "POST", "/api/v1/auth/resend-verification",
+		`{"email":"edge@test.com"}`, ""); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("resend throttle: got %d (%s)", w.Code, w.Body.String())
+	}
+	// Resend unknown -> 200 (enumeration-safe).
+	if w := doRequest(t, f, "POST", "/api/v1/auth/resend-verification",
+		`{"email":"ghost@test.com"}`, ""); w.Code != http.StatusOK {
+		t.Fatalf("resend unknown: got %d", w.Code)
+	}
+	// Verify via GET link (?token=).
+	u, err := f.repo.GetUserByEmail("edge@test.com")
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	const raw = "edge-verify-token"
+	if err := f.repo.CreateEmailVerification(nil, &model.EmailVerification{
+		UserID: u.ID, TokenHash: token.HashToken(raw), ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	w := doRequest(t, f, "GET", "/api/v1/auth/verify-email?token="+raw, "", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET verify: got %d (%s)", w.Code, w.Body.String())
+	}
+	// Login for tokens.
+	w = doRequest(t, f, "POST", "/api/v1/auth/login",
+		`{"email":"edge@test.com","password":"Str0ngP@ssw0rd!"}`, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("login: got %d", w.Code)
+	}
+	var pair dto.TokenPair
+	if err := json.Unmarshal(w.Body.Bytes(), &pair); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// Bad refresh -> 401; logout without token -> 401; bad login -> 401.
+	if w := doRequest(t, f, "POST", "/api/v1/auth/refresh",
+		`{"refreshToken":"bogus"}`, ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("bad refresh: got %d", w.Code)
+	}
+	if w := doRequest(t, f, "POST", "/api/v1/auth/logout", "", ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("anon logout: got %d", w.Code)
+	}
+	if w := doRequest(t, f, "POST", "/api/v1/auth/login",
+		`{"email":"edge@test.com","password":"wrongpw"}`, ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("bad password: got %d", w.Code)
+	}
+	// Logout with token -> 200.
+	if w := doRequest(t, f, "POST", "/api/v1/auth/logout", "", "Bearer "+pair.AccessToken); w.Code != http.StatusOK {
+		t.Fatalf("logout: got %d", w.Code)
 	}
 }

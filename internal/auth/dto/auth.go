@@ -1,5 +1,7 @@
 package dto
 
+import "github.com/google/uuid"
+
 // Register is POST /api/v1/auth/register.
 type Register struct {
 	Email     string  `json:"email" binding:"required,email,max=255" example:"john@test.com"`
@@ -59,12 +61,31 @@ type Profile struct {
 	LastName  *string `json:"lastName,omitempty" example:"Doe"`
 }
 
+// OrgMembership is the read shape organization exposes per membership.
+// Defined here (leaf package) so both auth handlers and the organization
+// domain can use it without import cycles.
+type OrgMembership struct {
+	ID       string `json:"id" example:"2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d"`
+	Slug     string `json:"slug" example:"acme"`
+	Name     string `json:"name" example:"Acme Inc"`
+	Role     string `json:"role" example:"ADMIN"`
+	JoinedAt string `json:"joinedAt,omitempty" example:"2026-09-19T12:00:00Z"`
+}
+
+// MembershipLister is implemented by the organization domain so auth can
+// embed org context (GET /auth/me). Nil means "no org integration".
+type MembershipLister interface {
+	ListMemberships(userID uuid.UUID) ([]OrgMembership, error)
+}
+
 // Me is GET /api/v1/auth/me.
 type Me struct {
 	ID            string  `json:"id" example:"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"`
 	Email         string  `json:"email" example:"john@test.com"`
 	EmailVerified bool    `json:"emailVerified" example:"true"`
 	Profile       Profile `json:"profile"`
+	// Organizations is omitted when no membership integration is wired.
+	Organizations []OrgMembership `json:"organizations,omitempty"`
 }
 
 // Message is a generic ack response.

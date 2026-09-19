@@ -22,6 +22,10 @@ import (
 	"github.com/nikhea/rallya/internal/auth/repository"
 	"github.com/nikhea/rallya/internal/auth/service"
 	"github.com/nikhea/rallya/internal/notification/jobs"
+	organization "github.com/nikhea/rallya/internal/organization"
+	orghandler "github.com/nikhea/rallya/internal/organization/handler"
+	orgrepository "github.com/nikhea/rallya/internal/organization/repository"
+	orgservice "github.com/nikhea/rallya/internal/organization/service"
 
 	_ "github.com/nikhea/rallya/docs"
 )
@@ -99,6 +103,16 @@ func main() {
 			})
 		})
 		auth.RegisterRoutes(api.Group("/auth"), authHandler, authRepo)
+
+		// Organization domain: consumes auth via UserReader; mail via River.
+		orgRepo := orgrepository.NewOrgRepository(config.DB)
+		orgSvc := orgservice.NewOrgService(orgRepo, authSvc)
+		orgSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		orgHandler := orghandler.NewHandler(orgSvc)
+		organization.RegisterRoutes(api.Group("/orgs"), orgHandler, orgRepo, authRepo)
+
+		// GET /auth/me embeds org context (nil-safe when unwired).
+		authHandler.SetMembershipLister(orgSvc)
 	}
 
 	port := os.Getenv("APP_PORT")

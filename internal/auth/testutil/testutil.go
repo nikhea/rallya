@@ -3,8 +3,10 @@
 package testutil
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -46,3 +48,42 @@ func SetupWithEnqueuer(t *testing.T) (*gorm.DB, *repository.AuthRepository, *ser
 
 // StrPtr builds a *string for profile fields.
 func StrPtr(s string) *string { return &s }
+
+// FakeUserReader is a map-backed auth.UserReader for downstream domain
+// tests (organization, iam). Misses return gorm.ErrRecordNotFound.
+type FakeUserReader struct {
+	ByID map[uuid.UUID]*model.User
+}
+
+// NewFakeUserReader builds an empty reader.
+func NewFakeUserReader() *FakeUserReader {
+	return &FakeUserReader{ByID: map[uuid.UUID]*model.User{}}
+}
+
+// Add registers a user (ID defaulted when nil).
+func (f *FakeUserReader) Add(u *model.User) *model.User {
+	if u.ID == uuid.Nil {
+		u.ID = uuid.New()
+	}
+	f.ByID[u.ID] = u
+	return u
+}
+
+// GetUserByID implements auth.UserReader.
+func (f *FakeUserReader) GetUserByID(id uuid.UUID) (*model.User, error) {
+	if u, ok := f.ByID[id]; ok {
+		return u, nil
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
+// GetUserByEmail implements auth.UserReader (case-insensitive).
+func (f *FakeUserReader) GetUserByEmail(email string) (*model.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	for _, u := range f.ByID {
+		if strings.ToLower(u.Email) == email {
+			return u, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}

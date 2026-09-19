@@ -12,11 +12,17 @@ import (
 
 // Handler adapts AuthService to Gin. No business logic here.
 type Handler struct {
-	svc *service.AuthService
+	svc  *service.AuthService
+	orgs dto.MembershipLister
 }
 
 // NewHandler builds the handler.
 func NewHandler(svc *service.AuthService) *Handler { return &Handler{svc: svc} }
+
+// SetMembershipLister wires org context into Me (nil disables).
+func (h *Handler) SetMembershipLister(l dto.MembershipLister) {
+	h.orgs = l
+}
 
 // Register creates a user + profile + credential and sends a verification email.
 //
@@ -251,7 +257,7 @@ func (h *Handler) Logout(c *gin.Context) {
 // Me returns the authenticated user's identity + profile.
 //
 // @Summary		Get current user
-// @Description	Returns id, email, verification flag, and profile names for the access-token owner.
+// @Description	Returns id, email, verification flag, profile names, and org memberships for the access-token owner.
 // @Tags			auth
 // @Produce		json
 // @Security		BearerAuth
@@ -269,6 +275,11 @@ func (h *Handler) Me(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
 		return
+	}
+	if h.orgs != nil {
+		if orgs, err := h.orgs.ListMemberships(uid); err == nil {
+			me.Organizations = orgs
+		}
 	}
 	c.JSON(http.StatusOK, me)
 }

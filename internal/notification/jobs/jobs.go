@@ -53,6 +53,20 @@ type SendWelcomeEmailArgs struct {
 
 func (SendWelcomeEmailArgs) Kind() string { return "send_welcome_email" }
 
+// SendOrgInviteEmailArgs renders the organization invitation email.
+type SendOrgInviteEmailArgs struct {
+	OrgID       uuid.UUID `json:"orgId"`
+	OrgName     string    `json:"orgName"`
+	OrgSlug     string    `json:"orgSlug"`
+	Email       string    `json:"email"`
+	Name        string    `json:"name"`
+	Role        string    `json:"role"`
+	InviterName string    `json:"inviterName"`
+	InviteLink  string    `json:"inviteLink"`
+}
+
+func (SendOrgInviteEmailArgs) Kind() string { return "send_org_invite_email" }
+
 // ---------- workers ----------
 
 // VerificationEmailWorker sends the verify email.
@@ -106,12 +120,31 @@ func (w *WelcomeEmailWorker) Work(ctx context.Context, job *river.Job[SendWelcom
 	return nil
 }
 
+// OrgInviteEmailWorker sends the organization invitation email.
+type OrgInviteEmailWorker struct {
+	river.WorkerDefaults[SendOrgInviteEmailArgs]
+}
+
+func (w *OrgInviteEmailWorker) Work(ctx context.Context, job *river.Job[SendOrgInviteEmailArgs]) error {
+	a := job.Args
+	r := templates.RenderOrgInvite(templates.OrgInviteData{
+		AppName: notification.AppName(), Name: a.Name, OrgName: a.OrgName,
+		Role: a.Role, InviterName: a.InviterName, InviteLink: a.InviteLink,
+	})
+	slog.Info("sending org invite email", "to", a.Email, "org", a.OrgSlug, "job", job.ID)
+	if err := mailer.Send(a.Email, r.Subject, r.Text, r.HTML); err != nil {
+		return err
+	}
+	return nil
+}
+
 // AddAll registers every email worker. Panics on misconfiguration
 // (fail-fast at boot, per River convention).
 func AddAll(workers *river.Workers) {
 	river.AddWorker(workers, &VerificationEmailWorker{})
 	river.AddWorker(workers, &PasswordResetEmailWorker{})
 	river.AddWorker(workers, &WelcomeEmailWorker{})
+	river.AddWorker(workers, &OrgInviteEmailWorker{})
 }
 
 // ---------- enqueue contract ----------

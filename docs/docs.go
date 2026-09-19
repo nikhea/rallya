@@ -174,7 +174,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns id, email, verification flag, and profile names for the access-token owner.",
+                "description": "Returns id, email, verification flag, profile names, and org memberships for the access-token owner.",
                 "produces": [
                     "application/json"
                 ],
@@ -519,6 +519,851 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/orgs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Orgs the caller belongs to, with roles. Used for org switching and GET /auth/me bootstrap.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "List my organizations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/orgdto.Org"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a tenant org; the caller becomes OWNER.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Create organization",
+                "parameters": [
+                    {
+                        "description": "Org payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.CreateOrg"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Org"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Slug taken",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/invites/accept": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Caller account email must match the invite. Creates the membership; idempotent for members.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Accept invite",
+                "parameters": [
+                    {
+                        "description": "Invite token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.AcceptInvite"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Org"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid/expired or email mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/invites/decline": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rejects a pending invite addressed to the caller. Idempotent; accepted invites cannot be declined.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Decline invite",
+                "parameters": [
+                    {
+                        "description": "Invite token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.DeclineInvite"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Invite declined",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Already accepted",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Org details; :id accepts UUID or slug. Non-members get 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Get organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "acme",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Org"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete; memberships and invites cascade.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Delete organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rename / re-slug / logo. Slug conflicts return 409.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Update organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.UpdateOrg"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Org"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/invites": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "List pending invites",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.InvitesPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a 7d invite and queues the invite email. Supersedes pending invites for the email.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Invite by email",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Invite payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.InviteMember"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Invite sent",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Already a member",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/invites/{inviteId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Revoke invite",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Invite UUID",
+                        "name": "inviteId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/members": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Paginated memberships with identity display data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "List members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MembersPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Adds a registered user; use invites for non-registered emails.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Add member directly",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Member payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.AddMember"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Member"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Already a member",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/members/{userId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "ADMIN+ may remove MEMBER/ADMIN; only OWNER removes OWNER. Self-leave allowed except last OWNER.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Remove member or leave",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member user UUID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Last owner",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Demoting the last OWNER is rejected.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Change member role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member user UUID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Role payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.UpdateMemberRole"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Member"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Last owner",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -592,6 +1437,13 @@ const docTemplate = `{
                     "type": "string",
                     "example": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
                 },
+                "organizations": {
+                    "description": "Organizations is omitted when no membership integration is wired.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.OrgMembership"
+                    }
+                },
                 "profile": {
                     "$ref": "#/definitions/dto.Profile"
                 }
@@ -603,6 +1455,31 @@ const docTemplate = `{
                 "message": {
                     "type": "string",
                     "example": "Verification email sent"
+                }
+            }
+        },
+        "dto.OrgMembership": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d"
+                },
+                "joinedAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Acme Inc"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "ADMIN"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "acme"
                 }
             }
         },
@@ -736,6 +1613,269 @@ const docTemplate = `{
                     "type": "string",
                     "minLength": 1,
                     "example": "b7e2d1c0a9f84620c3d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3"
+                }
+            }
+        },
+        "orgdto.AcceptInvite": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "example": "d9e4f3a2b1c04852e5f6a708192b3c4d5e6f8091a2b3c4d5e6f708192b3"
+                }
+            }
+        },
+        "orgdto.AddMember": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "jane@test.com"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "example": "MEMBER"
+                }
+            }
+        },
+        "orgdto.CreateOrg": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "logo": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "example": "https://example.com/logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "Acme Inc"
+                },
+                "slug": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "acme"
+                }
+            }
+        },
+        "orgdto.DeclineInvite": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "example": "d9e4f3a2b1c04852e5f6a708192b3c4d5e6f8091a2b3c4d5e6f708192b3"
+                }
+            }
+        },
+        "orgdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "insufficient role"
+                }
+            }
+        },
+        "orgdto.Invite": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "jane@test.com"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-09-26T12:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3c4d5e6f-7081-9a0b-1c2d-3e4f5a6b7c8d"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "MEMBER"
+                }
+            }
+        },
+        "orgdto.InviteMember": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "jane@test.com"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "example": "MEMBER"
+                }
+            }
+        },
+        "orgdto.InvitesPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orgdto.Invite"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "orgdto.Member": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "jane@test.com"
+                },
+                "emailVerified": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "joinedAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Jane"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "MEMBER"
+                },
+                "userId": {
+                    "type": "string",
+                    "example": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+                }
+            }
+        },
+        "orgdto.MembersPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orgdto.Member"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "orgdto.MessageAlias": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Invite sent"
+                }
+            }
+        },
+        "orgdto.Org": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d"
+                },
+                "logoUrl": {
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Acme Inc"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "OWNER"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "acme"
+                }
+            }
+        },
+        "orgdto.UpdateMemberRole": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "example": "ADMIN"
+                }
+            }
+        },
+        "orgdto.UpdateOrg": {
+            "type": "object",
+            "properties": {
+                "logo": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "example": "https://example.com/logo2.png"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "Acme Corp"
+                },
+                "slug": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "acme"
                 }
             }
         }

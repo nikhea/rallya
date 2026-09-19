@@ -16,6 +16,7 @@ var (
 	verifyTmpl  = template.Must(template.ParseFS(FS, "verify_email.html"))
 	resetTmpl   = template.Must(template.ParseFS(FS, "reset_password.html"))
 	welcomeTmpl = template.Must(template.ParseFS(FS, "welcome_email.html"))
+	inviteTmpl  = template.Must(template.ParseFS(FS, "org_invite_email.html"))
 )
 
 // VerifyEmailData feeds verify_email.html (OTP code + link button).
@@ -38,6 +39,16 @@ type WelcomeData struct {
 	AppName   string
 	Name      string
 	LoginLink string
+}
+
+// OrgInviteData feeds org_invite_email.html.
+type OrgInviteData struct {
+	AppName     string
+	Name        string
+	OrgName     string
+	Role        string
+	InviterName string
+	InviteLink  string
 }
 
 // Rendered is a subject + multipart body pair.
@@ -90,6 +101,19 @@ func RenderWelcome(d WelcomeData) Rendered {
 	return Rendered{
 		Subject: fmt.Sprintf("Welcome to %s", d.AppName),
 		HTML:    render(welcomeTmpl, d),
+		Text:    text,
+	}
+}
+
+// RenderOrgInvite builds the organization invitation email.
+func RenderOrgInvite(d OrgInviteData) Rendered {
+	text := fmt.Sprintf("Hi %s,\n\n%s invited you to join %s as %s.\n\n"+
+		"Accept here (valid 7 days):\n%s\n\n"+
+		"If you don't want to join, ignore this email.\n",
+		d.Name, d.InviterName, d.OrgName, d.Role, d.InviteLink)
+	return Rendered{
+		Subject: fmt.Sprintf("You are invited to %s — %s", d.OrgName, d.AppName),
+		HTML:    render(inviteTmpl, d),
 		Text:    text,
 	}
 }

@@ -20,6 +20,7 @@ import (
 //	Auth -> (User identity) -> Organization -> IAM -> Events
 type UserReader interface {
 	GetUserByID(id uuid.UUID) (*model.User, error)
+	GetUserByEmail(email string) (*model.User, error)
 }
 
 // Ensure the model satisfies the shape downstream expects.

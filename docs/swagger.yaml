@@ -50,6 +50,11 @@ definitions:
       id:
         example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
         type: string
+      organizations:
+        description: Organizations is omitted when no membership integration is wired.
+        items:
+          $ref: '#/definitions/dto.OrgMembership'
+        type: array
       profile:
         $ref: '#/definitions/dto.Profile'
     type: object
@@ -57,6 +62,24 @@ definitions:
     properties:
       message:
         example: Verification email sent
+        type: string
+    type: object
+  dto.OrgMembership:
+    properties:
+      id:
+        example: 2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d
+        type: string
+      joinedAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      name:
+        example: Acme Inc
+        type: string
+      role:
+        example: ADMIN
+        type: string
+      slug:
+        example: acme
         type: string
     type: object
   dto.Profile:
@@ -154,6 +177,194 @@ definitions:
         type: string
     required:
     - token
+    type: object
+  orgdto.AcceptInvite:
+    properties:
+      token:
+        example: d9e4f3a2b1c04852e5f6a708192b3c4d5e6f8091a2b3c4d5e6f708192b3
+        minLength: 1
+        type: string
+    required:
+    - token
+    type: object
+  orgdto.AddMember:
+    properties:
+      email:
+        example: jane@test.com
+        maxLength: 255
+        type: string
+      role:
+        enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        example: MEMBER
+        type: string
+    required:
+    - email
+    type: object
+  orgdto.CreateOrg:
+    properties:
+      logo:
+        example: https://example.com/logo.png
+        maxLength: 2048
+        type: string
+      name:
+        example: Acme Inc
+        maxLength: 255
+        minLength: 1
+        type: string
+      slug:
+        example: acme
+        maxLength: 100
+        type: string
+    required:
+    - name
+    type: object
+  orgdto.DeclineInvite:
+    properties:
+      token:
+        example: d9e4f3a2b1c04852e5f6a708192b3c4d5e6f8091a2b3c4d5e6f708192b3
+        minLength: 1
+        type: string
+    required:
+    - token
+    type: object
+  orgdto.ErrorAlias:
+    properties:
+      error:
+        example: insufficient role
+        type: string
+    type: object
+  orgdto.Invite:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      email:
+        example: jane@test.com
+        type: string
+      expiresAt:
+        example: "2026-09-26T12:00:00Z"
+        type: string
+      id:
+        example: 3c4d5e6f-7081-9a0b-1c2d-3e4f5a6b7c8d
+        type: string
+      role:
+        example: MEMBER
+        type: string
+    type: object
+  orgdto.InviteMember:
+    properties:
+      email:
+        example: jane@test.com
+        maxLength: 255
+        type: string
+      role:
+        enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        example: MEMBER
+        type: string
+    required:
+    - email
+    type: object
+  orgdto.InvitesPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/orgdto.Invite'
+        type: array
+      total:
+        example: 1
+        type: integer
+    type: object
+  orgdto.Member:
+    properties:
+      email:
+        example: jane@test.com
+        type: string
+      emailVerified:
+        example: true
+        type: boolean
+      joinedAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      name:
+        example: Jane
+        type: string
+      role:
+        example: MEMBER
+        type: string
+      userId:
+        example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+        type: string
+    type: object
+  orgdto.MembersPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/orgdto.Member'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  orgdto.MessageAlias:
+    properties:
+      message:
+        example: Invite sent
+        type: string
+    type: object
+  orgdto.Org:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      id:
+        example: 2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d
+        type: string
+      logoUrl:
+        example: https://example.com/logo.png
+        type: string
+      name:
+        example: Acme Inc
+        type: string
+      role:
+        example: OWNER
+        type: string
+      slug:
+        example: acme
+        type: string
+    type: object
+  orgdto.UpdateMemberRole:
+    properties:
+      role:
+        enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        example: ADMIN
+        type: string
+    required:
+    - role
+    type: object
+  orgdto.UpdateOrg:
+    properties:
+      logo:
+        example: https://example.com/logo2.png
+        maxLength: 2048
+        type: string
+      name:
+        example: Acme Corp
+        maxLength: 255
+        minLength: 1
+        type: string
+      slug:
+        example: acme
+        maxLength: 100
+        type: string
     type: object
 host: localhost:8080
 info:
@@ -267,8 +478,8 @@ paths:
       - auth
   /auth/me:
     get:
-      description: Returns id, email, verification flag, and profile names for the
-        access-token owner.
+      description: Returns id, email, verification flag, profile names, and org memberships
+        for the access-token owner.
       parameters:
       - description: Bearer access token
         example: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYTIzYiJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
@@ -502,6 +713,554 @@ paths:
       summary: Verify email address
       tags:
       - auth
+  /orgs:
+    get:
+      description: Orgs the caller belongs to, with roles. Used for org switching
+        and GET /auth/me bootstrap.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/orgdto.Org'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List my organizations
+      tags:
+      - orgs
+    post:
+      consumes:
+      - application/json
+      description: Creates a tenant org; the caller becomes OWNER.
+      parameters:
+      - description: Org payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.CreateOrg'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/orgdto.Org'
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Slug taken
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create organization
+      tags:
+      - orgs
+  /orgs/{id}:
+    delete:
+      description: Hard delete; memberships and invites cascade.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Delete organization
+      tags:
+      - orgs
+    get:
+      description: Org details; :id accepts UUID or slug. Non-members get 404.
+      parameters:
+      - description: Org UUID or slug
+        example: acme
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.Org'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get organization
+      tags:
+      - orgs
+    patch:
+      consumes:
+      - application/json
+      description: Rename / re-slug / logo. Slug conflicts return 409.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.UpdateOrg'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.Org'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update organization
+      tags:
+      - orgs
+  /orgs/{id}/invites:
+    get:
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.InvitesPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List pending invites
+      tags:
+      - orgs
+    post:
+      consumes:
+      - application/json
+      description: Creates a 7d invite and queues the invite email. Supersedes pending
+        invites for the email.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Invite payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.InviteMember'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Invite sent
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Already a member
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Invite by email
+      tags:
+      - orgs
+  /orgs/{id}/invites/{inviteId}:
+    delete:
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Invite UUID
+        in: path
+        name: inviteId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Revoke invite
+      tags:
+      - orgs
+  /orgs/{id}/members:
+    get:
+      description: Paginated memberships with identity display data.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MembersPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List members
+      tags:
+      - orgs
+    post:
+      consumes:
+      - application/json
+      description: Adds a registered user; use invites for non-registered emails.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Member payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.AddMember'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/orgdto.Member'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Already a member
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Add member directly
+      tags:
+      - orgs
+  /orgs/{id}/members/{userId}:
+    delete:
+      description: ADMIN+ may remove MEMBER/ADMIN; only OWNER removes OWNER. Self-leave
+        allowed except last OWNER.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Member user UUID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Last owner
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Remove member or leave
+      tags:
+      - orgs
+    patch:
+      consumes:
+      - application/json
+      description: Demoting the last OWNER is rejected.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Member user UUID
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: Role payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.UpdateMemberRole'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.Member'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Last owner
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Change member role
+      tags:
+      - orgs
+  /orgs/invites/accept:
+    post:
+      consumes:
+      - application/json
+      description: Caller account email must match the invite. Creates the membership;
+        idempotent for members.
+      parameters:
+      - description: Invite token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.AcceptInvite'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.Org'
+        "400":
+          description: Invalid/expired or email mismatch
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Accept invite
+      tags:
+      - orgs
+  /orgs/invites/decline:
+    post:
+      consumes:
+      - application/json
+      description: Rejects a pending invite addressed to the caller. Idempotent; accepted
+        invites cannot be declined.
+      parameters:
+      - description: Invite token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.DeclineInvite'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Invite declined
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Already accepted
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Decline invite
+      tags:
+      - orgs
 securityDefinitions:
   BearerAuth:
     description: '"Bearer <accessToken> from POST /auth/login (or /auth/refresh)."'
