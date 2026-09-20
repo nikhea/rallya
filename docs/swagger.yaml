@@ -96,6 +96,12 @@ definitions:
         example: event not found
         type: string
     type: object
+  checkindto.RevertRequest:
+    properties:
+      attendeeId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
   checkindto.ScanRequest:
     properties:
       attendeeId:
@@ -2334,6 +2340,60 @@ paths:
       security:
       - BearerAuth: []
       summary: Scan a batch of codes
+      tags:
+      - checkin
+  /orgs/{id}/events/{eventId}/checkin/revert:
+    post:
+      consumes:
+      - application/json
+      description: CHECKED_IN back to REGISTERED, timestamp cleared, logged REVERTED.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Roster attendee ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/checkindto.RevertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/checkindto.ScanResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Undo a mis-scan
       tags:
       - checkin
   /orgs/{id}/events/{eventId}/checkin/stats:

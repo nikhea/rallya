@@ -21,6 +21,7 @@ const (
 	OutcomeInvalidCode      Outcome = "INVALID_CODE"
 	OutcomeCancelled        Outcome = "CANCELLED"
 	OutcomeWrongEvent       Outcome = "WRONG_EVENT"
+	OutcomeReverted         Outcome = "REVERTED"
 )
 
 // Method records how the person was identified at the door: cryptographic

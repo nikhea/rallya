@@ -116,7 +116,6 @@ func (h *Handler) ScanBatch(c *gin.Context) {
 }
 
 // Stats GET /api/v1/orgs/:id/events/:eventId/checkin/stats (ADMIN+).
-//
 // @Summary		Door-dashboard counts
 // @Description	Registered / checked-in / cancelled tallies for one event.
 // @Tags			checkin
@@ -146,6 +145,48 @@ func (h *Handler) Stats(c *gin.Context) {
 	})
 }
 
+// Revert POST /api/v1/orgs/:id/events/:eventId/checkin/revert (ADMIN+).
+//
+// @Summary		Undo a mis-scan
+// @Description	CHECKED_IN back to REGISTERED, timestamp cleared, logged REVERTED.
+// @Tags			checkin
+// @Accept			json
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id		path		string						true	"Org UUID or slug"
+// @Param			eventId	path		string						true	"Event UUID or slug"
+// @Param			request	body		checkindto.RevertRequest	true	"Roster attendee ID"
+// @Success		200		{object}	checkindto.ScanResult
+// @Failure		400		{object}	checkindto.ErrorAlias
+// @Failure		401		{object}	checkindto.ErrorAlias
+// @Failure		403		{object}	checkindto.ErrorAlias
+// @Failure		404		{object}	checkindto.ErrorAlias
+// @Failure		422		{object}	checkindto.ErrorAlias
+// @Router			/orgs/{id}/events/{eventId}/checkin/revert [post]
+func (h *Handler) Revert(c *gin.Context) {
+	orgID, ok := orghandler.OrgIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "organization not found"})
+		return
+	}
+	staffID, ok := authhandler.UserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var in checkindto.RevertRequest
+	if err := c.ShouldBindJSON(&in); err != nil || in.AttendeeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "attendeeId is required"})
+		return
+	}
+	r, err := h.svc.Revert(orgID, c.Param("eventId"), in.AttendeeID, staffID)
+	if err != nil {
+		c.JSON(checkinErrorStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, toScanResult(r))
+}
+
 func toScanResult(r *service.ScanResult) checkindto.ScanResult {
 	out := checkindto.ScanResult{Outcome: string(r.Outcome), Method: string(r.Method)}
 	if r.AttendeeID != nil {
@@ -168,6 +209,8 @@ func checkinErrorStatus(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, service.ErrQRSecretUnset):
 		return http.StatusServiceUnavailable
+	case errors.Is(err, service.ErrNotCheckedIn):
+		return http.StatusUnprocessableEntity
 	default:
 		return http.StatusBadRequest
 	}

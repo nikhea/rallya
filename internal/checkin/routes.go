@@ -27,6 +27,7 @@ func RegisterRoutes(
 	{
 		door.POST("", iam.RequirePermission(e, iam.ObjCheckin, iam.ActCreate), h.Scan)
 		door.POST("/batch", iam.RequirePermission(e, iam.ObjCheckin, iam.ActCreate), h.ScanBatch)
+		door.POST("/revert", iam.RequirePermission(e, iam.ObjCheckin, iam.ActUpdate), h.Revert)
 		door.GET("/stats", iam.RequirePermission(e, iam.ObjCheckin, iam.ActRead), h.Stats)
 	}
 }

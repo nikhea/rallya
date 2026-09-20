@@ -6,7 +6,7 @@ never errors.
 ## Rules
 
 - Flip via `CheckinApplier` seam (`ApplyCheckin`/`ApplyCheckinManual`,
-  `CountByStatus`) — never touch the attendees table here. Verdicts carry
+  `RevertCheckin`, `CountByStatus`) — never touch the attendees table here. Verdicts carry
   business refusals; only unknown rows error (`gorm.ErrRecordNotFound`).
 - QR: `VerifyPayload` with the boot-injected secret (`SetQRSecret`);
   unset secret fails the scan (`ErrQRSecretUnset` → 503), never os.Exit.

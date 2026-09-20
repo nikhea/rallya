@@ -33,7 +33,16 @@ type ScanVerdict struct {
 type CheckinApplier interface {
 	ApplyCheckin(tx *gorm.DB, attendeeID uuid.UUID, rawToken string, eventID uuid.UUID) (*ScanVerdict, error)
 	ApplyCheckinManual(tx *gorm.DB, attendeeID, eventID uuid.UUID) (*ScanVerdict, error)
+	RevertCheckin(tx *gorm.DB, attendeeID, eventID uuid.UUID) (*RevertVerdict, error)
 	CountByStatus(eventID uuid.UUID) (map[string]int64, error)
+}
+
+// RevertVerdict is the atomic revert outcome (owned here; implemented by
+// attendees — ScanVerdict precedent).
+type RevertVerdict struct {
+	EventOK  bool
+	Status   model.AttendeeStatus
+	Reverted bool
 }
 
 // EventResolver resolves event refs within an org (implemented by events).
@@ -175,6 +184,44 @@ func (s *CheckinService) ScanBatch(orgID uuid.UUID, eventRef string, codes []str
 		out = append(out, *r)
 	}
 	return out, nil
+}
+
+// Revert undoes a mis-scan: CHECKED_IN -> REGISTERED, timestamp cleared,
+// the attempt logged as REVERTED. Only CHECKED_IN rows revert (anything
+// else is a 422); wrong-event rows stealth-404.
+func (s *CheckinService) Revert(orgID uuid.UUID, eventRef, attendeeRef string, staffID uuid.UUID) (*ScanResult, error) {
+	eventID, err := s.events.ResolveEventID(orgID, eventRef)
+	if err != nil {
+		return nil, ErrCheckinNotFound
+	}
+	attendeeID, err := uuid.Parse(attendeeRef)
+	if err != nil {
+		return nil, ErrAttendeeNotFound
+	}
+	res := &ScanResult{Outcome: checkinmodel.OutcomeReverted, Method: checkinmodel.MethodManual, AttendeeID: &attendeeID}
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		verdict, err := s.attends.RevertCheckin(tx, attendeeID, eventID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrAttendeeNotFound
+			}
+			return err
+		}
+		if !verdict.EventOK {
+			return ErrAttendeeNotFound
+		}
+		if !verdict.Reverted {
+			return ErrNotCheckedIn
+		}
+		return s.repo.InsertTx(tx, &checkinmodel.CheckinLog{
+			EventID: eventID, AttendeeID: &attendeeID, ScannedBy: staffID,
+			Outcome: res.Outcome, Method: checkinmodel.MethodManual,
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 // Stats tallies the roster for the door dashboard.

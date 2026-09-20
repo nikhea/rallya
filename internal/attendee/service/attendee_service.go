@@ -294,6 +294,30 @@ func (s *AttendeeService) CountByStatus(eventID uuid.UUID) (map[string]int64, er
 	return s.repo.CountByStatus(eventID)
 }
 
+// RevertCheckin atomically undoes a mis-scan: CHECKED_IN -> REGISTERED with
+// the timestamp cleared, inside the caller's tx (row-locked, same race
+// guarantees as the forward flip). Only CHECKED_IN rows revert — anything
+// else reports its status unflipped and the caller decides.
+// Implements the check-in domain's CheckinApplier contract.
+func (s *AttendeeService) RevertCheckin(tx *gorm.DB, attendeeID, eventID uuid.UUID) (*checkinservice.RevertVerdict, error) {
+	a, err := s.repo.GetForUpdate(tx, attendeeID)
+	if err != nil {
+		return nil, err
+	}
+	v := &checkinservice.RevertVerdict{EventOK: a.EventID == eventID, Status: a.Status}
+	if !v.EventOK || a.Status != model.AttendeeStatusCheckedIn {
+		return v, nil
+	}
+	a.Status = model.AttendeeStatusRegistered
+	a.CheckedInAt = nil
+	if err := s.repo.UpdateAttendee(tx, a); err != nil {
+		return nil, err
+	}
+	v.Reverted = true
+	v.Status = model.AttendeeStatusRegistered
+	return v, nil
+}
+
 // tokenOK constant-time compares a scanned token against the stored hash.
 func (s *AttendeeService) tokenOK(a *model.Attendee, rawToken string) bool {
 	if rawToken == "" {

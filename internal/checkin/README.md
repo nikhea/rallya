@@ -11,6 +11,9 @@ refused scan is a successful request with a negative result, not a 4xx.
 - `POST .../checkin/batch` — `{codes[]}`, QR-only, max 50 (413 over),
   per-item outcomes, no fail-fast.
 - `GET .../checkin/stats` — `{registered, checkedIn, cancelled, total}`.
+- `POST .../checkin/revert` — `{attendeeId}` (ADMIN-only,
+  `checkin:update`): undoes a mis-scan (`CHECKED_IN` → `REGISTERED`,
+  timestamp cleared, logged `REVERTED`). Anything else 422s.
 
 ## Outcomes
 
@@ -32,4 +35,5 @@ malformed/forged/unknown — no oracle) · `CANCELLED` (row cancelled) ·
 ## Tables
 
 `checkin_logs` (`000016`): append-only, `attendee_id` NULL for unscannable
-codes. No undo in v1 — mis-scans need the follow-up ADMIN revert.
+codes. Revert needs no new table — it is a logged `REVERTED` attempt plus
+the row flip back.

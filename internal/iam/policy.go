@@ -63,6 +63,7 @@ func AdminPermissions() []Permission {
 		{ObjAttendee, ActUpdate},
 		{ObjCheckin, ActRead},
 		{ObjCheckin, ActCreate},
+		{ObjCheckin, ActUpdate},
 	}
 }
 

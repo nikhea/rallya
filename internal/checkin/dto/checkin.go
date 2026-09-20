@@ -14,6 +14,11 @@ type BatchRequest struct {
 	Codes []string `json:"codes" example:"<uuid>.<token>.<hmac>"`
 }
 
+// RevertRequest undoes one mis-scan by roster ID (ADMIN-only, logged).
+type RevertRequest struct {
+	AttendeeID string `json:"attendeeId" example:"550e8400-e29b-41d4-a716-446655440000"`
+}
+
 // ScanResult is one scan outcome. Refusals return 200 with their outcome.
 type ScanResult struct {
 	Outcome     string  `json:"outcome" example:"CHECKED_IN"`
