@@ -2,11 +2,8 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
-	"fmt"
 	"log/slog"
-	"math/big"
 	"strings"
 	"time"
 
@@ -20,6 +17,7 @@ import (
 	"github.com/nikhea/rallya/internal/auth/model"
 	"github.com/nikhea/rallya/internal/auth/repository"
 	"github.com/nikhea/rallya/internal/auth/token"
+	authutils "github.com/nikhea/rallya/internal/auth/utils"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 )
 
@@ -30,13 +28,6 @@ const (
 	passwordResetTTL           = time.Hour
 	resendVerificationThrottle = 60 * time.Second
 )
-
-// LoginContext carries request metadata for sessions/attempts.
-type LoginContext struct {
-	IPAddress  string
-	UserAgent  string
-	DeviceName string
-}
 
 // AuthService orchestrates auth flows over AuthRepository.
 // Email delivery goes through the jobs Enqueuer (River); welcome mail
@@ -62,6 +53,11 @@ func (s *AuthService) GetUserByID(id uuid.UUID) (*model.User, error) {
 	return s.repo.GetUserByID(id)
 }
 
+// GetUserByEmail satisfies the UserReader cross-domain contract.
+func (s *AuthService) GetUserByEmail(email string) (*model.User, error) {
+	return s.repo.GetUserByEmail(email)
+}
+
 // ---------- register / verify ----------
 
 // Register creates user + profile + credential + verification artifacts,
@@ -82,7 +78,7 @@ func (s *AuthService) Register(in dto.Register) error {
 	if err != nil {
 		return err
 	}
-	otp, err := generateOTP()
+	otp, err := authutils.GenerateOTP()
 	if err != nil {
 		return err
 	}
@@ -116,9 +112,9 @@ func (s *AuthService) Register(in dto.Register) error {
 		return s.enqueueTx(tx, jobs.SendVerificationEmailArgs{
 			UserID:     user.ID,
 			Email:      email,
-			Name:       displayName(email, in.FirstName),
+			Name:       authutils.DisplayName(email, in.FirstName),
 			OTP:        otp,
-			VerifyLink: verificationLink(raw),
+			VerifyLink: authutils.VerificationLink(raw),
 		})
 	}); err != nil {
 		return err
@@ -223,7 +219,7 @@ func (s *AuthService) ResendVerification(email string) error {
 	if err != nil {
 		return err
 	}
-	otp, err := generateOTP()
+	otp, err := authutils.GenerateOTP()
 	if err != nil {
 		return err
 	}
@@ -250,9 +246,9 @@ func (s *AuthService) ResendVerification(email string) error {
 		return s.enqueueTx(tx, jobs.SendVerificationEmailArgs{
 			UserID:     u.ID,
 			Email:      email,
-			Name:       displayNameOf(u),
+			Name:       authutils.DisplayNameOf(u),
 			OTP:        otp,
-			VerifyLink: verificationLink(raw),
+			VerifyLink: authutils.VerificationLink(raw),
 		})
 	}); err != nil {
 		return err
@@ -264,7 +260,7 @@ func (s *AuthService) ResendVerification(email string) error {
 
 // Login validates credentials, enforces status + verification, then mints
 // a session + refresh pair and records the attempt.
-func (s *AuthService) Login(in dto.Login, ctx LoginContext) (*dto.TokenPair, error) {
+func (s *AuthService) Login(in dto.Login, ctx dto.LoginContext) (*dto.TokenPair, error) {
 	email := strings.ToLower(strings.TrimSpace(in.Email))
 	u, err := s.repo.GetUserByEmail(email)
 	if err != nil {
@@ -302,7 +298,7 @@ func (s *AuthService) Login(in dto.Login, ctx LoginContext) (*dto.TokenPair, err
 	now := time.Now()
 	sess := &model.Session{
 		UserID: u.ID, LastActiveAt: &now,
-		ExpiresAt: ptrTime(now.Add(config.RefreshTTL())),
+		ExpiresAt: authutils.PtrTime(now.Add(config.RefreshTTL())),
 	}
 	if ctx.IPAddress != "" {
 		sess.IPAddress = &ctx.IPAddress
@@ -453,8 +449,8 @@ func (s *AuthService) ForgotPassword(email string) error {
 		return s.enqueueTx(tx, jobs.SendPasswordResetEmailArgs{
 			UserID:    u.ID,
 			Email:     email,
-			Name:      displayNameOf(u),
-			ResetLink: resetLink(raw),
+			Name:      authutils.DisplayNameOf(u),
+			ResetLink: authutils.ResetLink(raw),
 		})
 	}); err != nil {
 		return err
@@ -517,39 +513,6 @@ func (s *AuthService) recordAttempt(email string, userID *uuid.UUID, ip string, 
 	s.repo.RecordLoginAttempt(a)
 }
 
-func ptrTime(t time.Time) *time.Time { return &t }
-
-// ---------- email queue helpers ----------
-
-// generateOTP returns a zero-padded 6-digit code from crypto/rand.
-func generateOTP() (string, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%06d", n.Int64()), nil
-}
-
-// displayName prefers the profile first name, else the email local part.
-func displayName(email string, firstName *string) string {
-	if firstName != nil && strings.TrimSpace(*firstName) != "" {
-		return strings.TrimSpace(*firstName)
-	}
-	if i := strings.Index(email, "@"); i > 0 {
-		return email[:i]
-	}
-	return email
-}
-
-// displayNameOf derives the greeting name from a loaded user (profile preloaded).
-func displayNameOf(u *model.User) string {
-	var first *string
-	if u.Profile != nil {
-		first = u.Profile.FirstName
-	}
-	return displayName(u.Email, first)
-}
-
 // enqueueTx inserts a job inside tx; skips silently without an enqueuer.
 func (s *AuthService) enqueueTx(tx *gorm.DB, args river.JobArgs) error {
 	if s.enqueuer == nil {
@@ -572,7 +535,7 @@ func (s *AuthService) sendWelcome(userID uuid.UUID) {
 	err = s.enqueuer.Enqueue(context.Background(), jobs.SendWelcomeEmailArgs{
 		UserID:    u.ID,
 		Email:     u.Email,
-		Name:      displayNameOf(u),
+		Name:      authutils.DisplayNameOf(u),
 		LoginLink: config.AppURL(),
 	})
 	if err != nil {

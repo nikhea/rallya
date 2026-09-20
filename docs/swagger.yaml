@@ -1,5 +1,79 @@
 basePath: /api/v1
 definitions:
+  attendeedto.AddAttendee:
+    properties:
+      email:
+        example: walkin@test.com
+        maxLength: 255
+        type: string
+      name:
+        example: Walk In
+        maxLength: 255
+        type: string
+    required:
+    - email
+    type: object
+  attendeedto.Attendee:
+    properties:
+      checkedInAt:
+        type: string
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      email:
+        example: jane@test.com
+        type: string
+      eventId:
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        type: string
+      id:
+        example: 8a8192a3-1425-3c4d-5e6f-708192a3b4c5
+        type: string
+      name:
+        example: Jane Doe
+        type: string
+      orderId:
+        example: 7a8192a3-1425-3c4d-5e6f-708192a3b4c5
+        type: string
+      qrPayload:
+        example: 8a8192a3….hmac
+        type: string
+      status:
+        example: REGISTERED
+        type: string
+      unitIndex:
+        example: 0
+        type: integer
+      userId:
+        type: string
+    type: object
+  attendeedto.AttendeesPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/attendeedto.Attendee'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  attendeedto.CorrectAttendee:
+    properties:
+      email:
+        example: jane@test.com
+        maxLength: 255
+        type: string
+      name:
+        example: Jane Doe
+        maxLength: 255
+        type: string
+    type: object
+  attendeedto.ErrorAlias:
+    properties:
+      error:
+        example: attendee not found
+        type: string
+    type: object
   dto.EmailNotVerifiedResponse:
     properties:
       code:
@@ -50,6 +124,11 @@ definitions:
       id:
         example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
         type: string
+      organizations:
+        description: Organizations is omitted when no membership integration is wired.
+        items:
+          $ref: '#/definitions/dto.OrgMembership'
+        type: array
       profile:
         $ref: '#/definitions/dto.Profile'
     type: object
@@ -57,6 +136,24 @@ definitions:
     properties:
       message:
         example: Verification email sent
+        type: string
+    type: object
+  dto.OrgMembership:
+    properties:
+      id:
+        example: 2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d
+        type: string
+      joinedAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      name:
+        example: Acme Inc
+        type: string
+      role:
+        example: ADMIN
+        type: string
+      slug:
+        example: acme
         type: string
     type: object
   dto.Profile:
@@ -155,6 +252,585 @@ definitions:
     required:
     - token
     type: object
+  eventdto.CreateEvent:
+    properties:
+      capacity:
+        example: 500
+        minimum: 1
+        type: integer
+      description:
+        example: Three days of music downtown.
+        maxLength: 10000
+        type: string
+      endsAt:
+        example: "2026-08-03T22:00:00Z"
+        type: string
+      location:
+        example: Lagos, Nigeria
+        maxLength: 255
+        type: string
+      slug:
+        example: summer-fest-2026
+        maxLength: 150
+        type: string
+      startsAt:
+        example: "2026-08-01T10:00:00Z"
+        type: string
+      title:
+        example: Summer Fest 2026
+        maxLength: 255
+        minLength: 1
+        type: string
+      venue:
+        example: Central Park Amphitheatre
+        maxLength: 255
+        type: string
+    required:
+    - title
+    type: object
+  eventdto.ErrorAlias:
+    properties:
+      error:
+        example: event not found
+        type: string
+    type: object
+  eventdto.Event:
+    properties:
+      capacity:
+        example: 500
+        type: integer
+      coverUrl:
+        example: /uploads/events/acme/x7f2k9.jpg
+        type: string
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      description:
+        type: string
+      endsAt:
+        example: "2026-08-03T22:00:00Z"
+        type: string
+      id:
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        type: string
+      location:
+        type: string
+      slug:
+        example: summer-fest-2026
+        type: string
+      startsAt:
+        example: "2026-08-01T10:00:00Z"
+        type: string
+      status:
+        example: PUBLISHED
+        type: string
+      title:
+        example: Summer Fest 2026
+        type: string
+      updatedAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      venue:
+        type: string
+    type: object
+  eventdto.EventImage:
+    properties:
+      bytes:
+        example: 204800
+        type: integer
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      format:
+        example: png
+        type: string
+      height:
+        example: 800
+        type: integer
+      id:
+        example: 5e6f7081-9203-1b2c-3d4e-5f60718293a4
+        type: string
+      publicId:
+        example: rallya/events/acme/ev-ab12
+        type: string
+      url:
+        example: https://res.cloudinary.com/demo/image/upload/v1/rallya/events/acme/ev-ab12.png
+        type: string
+      width:
+        example: 1200
+        type: integer
+    type: object
+  eventdto.EventsPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/eventdto.Event'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  eventdto.ImagesPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/eventdto.EventImage'
+        type: array
+      total:
+        example: 3
+        type: integer
+    type: object
+  eventdto.MessageAlias:
+    properties:
+      message:
+        example: Event published
+        type: string
+    type: object
+  eventdto.UpdateEvent:
+    properties:
+      capacity:
+        minimum: 1
+        type: integer
+      clearCover:
+        example: false
+        type: boolean
+      description:
+        maxLength: 10000
+        type: string
+      endsAt:
+        type: string
+      location:
+        maxLength: 255
+        type: string
+      slug:
+        example: summer-fest
+        maxLength: 150
+        type: string
+      startsAt:
+        type: string
+      title:
+        example: Summer Fest 2026
+        maxLength: 255
+        minLength: 1
+        type: string
+      venue:
+        maxLength: 255
+        type: string
+    type: object
+  orderdto.CreateOrder:
+    properties:
+      idempotencyKey:
+        example: order-req-001
+        maxLength: 100
+        type: string
+      quantity:
+        example: 2
+        minimum: 1
+        type: integer
+      ticketTypeId:
+        example: 6f708192-0314-2b3c-4d5e-6f708192a3b4
+        type: string
+    required:
+    - quantity
+    - ticketTypeId
+    type: object
+  orderdto.ErrorAlias:
+    properties:
+      error:
+        example: sold out
+        type: string
+    type: object
+  orderdto.Order:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      currency:
+        example: USD
+        type: string
+      eventId:
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        type: string
+      expiresAt:
+        example: "2026-09-19T12:15:00Z"
+        type: string
+      id:
+        example: 7a8192a3-1425-3c4d-5e6f-708192a3b4c5
+        type: string
+      priceCents:
+        example: 5000
+        type: integer
+      quantity:
+        example: 2
+        type: integer
+      status:
+        example: CONFIRMED
+        type: string
+      ticketTypeId:
+        example: 6f708192-0314-2b3c-4d5e-6f708192a3b4
+        type: string
+    type: object
+  orderdto.OrdersPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/orderdto.Order'
+        type: array
+      total:
+        example: 3
+        type: integer
+    type: object
+  orgdto.AcceptInvite:
+    properties:
+      token:
+        example: d9e4f3a2b1c04852e5f6a708192b3c4d5e6f8091a2b3c4d5e6f708192b3
+        minLength: 1
+        type: string
+    required:
+    - token
+    type: object
+  orgdto.AddMember:
+    properties:
+      email:
+        example: jane@test.com
+        maxLength: 255
+        type: string
+      role:
+        enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        example: MEMBER
+        type: string
+    required:
+    - email
+    type: object
+  orgdto.CreateOrg:
+    properties:
+      logo:
+        example: https://example.com/logo.png
+        maxLength: 2048
+        type: string
+      name:
+        example: Acme Inc
+        maxLength: 255
+        minLength: 1
+        type: string
+      slug:
+        example: acme
+        maxLength: 100
+        type: string
+    required:
+    - name
+    type: object
+  orgdto.DeclineInvite:
+    properties:
+      token:
+        example: d9e4f3a2b1c04852e5f6a708192b3c4d5e6f8091a2b3c4d5e6f708192b3
+        minLength: 1
+        type: string
+    required:
+    - token
+    type: object
+  orgdto.ErrorAlias:
+    properties:
+      error:
+        example: insufficient role
+        type: string
+    type: object
+  orgdto.Invite:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      email:
+        example: jane@test.com
+        type: string
+      expiresAt:
+        example: "2026-09-26T12:00:00Z"
+        type: string
+      id:
+        example: 3c4d5e6f-7081-9a0b-1c2d-3e4f5a6b7c8d
+        type: string
+      role:
+        example: MEMBER
+        type: string
+    type: object
+  orgdto.InviteMember:
+    properties:
+      email:
+        example: jane@test.com
+        maxLength: 255
+        type: string
+      role:
+        enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        example: MEMBER
+        type: string
+    required:
+    - email
+    type: object
+  orgdto.InvitesPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/orgdto.Invite'
+        type: array
+      total:
+        example: 1
+        type: integer
+    type: object
+  orgdto.Member:
+    properties:
+      email:
+        example: jane@test.com
+        type: string
+      emailVerified:
+        example: true
+        type: boolean
+      joinedAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      name:
+        example: Jane
+        type: string
+      role:
+        example: MEMBER
+        type: string
+      userId:
+        example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+        type: string
+    type: object
+  orgdto.MembersPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/orgdto.Member'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  orgdto.MessageAlias:
+    properties:
+      message:
+        example: Invite sent
+        type: string
+    type: object
+  orgdto.Org:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      id:
+        example: 2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d
+        type: string
+      logoUrl:
+        example: https://example.com/logo.png
+        type: string
+      name:
+        example: Acme Inc
+        type: string
+      role:
+        example: OWNER
+        type: string
+      slug:
+        example: acme
+        type: string
+    type: object
+  orgdto.UpdateMemberRole:
+    properties:
+      role:
+        enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        example: ADMIN
+        type: string
+    required:
+    - role
+    type: object
+  orgdto.UpdateMyPreferences:
+    properties:
+      notifyEvents:
+        example: true
+        type: boolean
+    type: object
+  orgdto.UpdateOrg:
+    properties:
+      logo:
+        example: https://example.com/logo2.png
+        maxLength: 2048
+        type: string
+      name:
+        example: Acme Corp
+        maxLength: 255
+        minLength: 1
+        type: string
+      slug:
+        example: acme
+        maxLength: 100
+        type: string
+    type: object
+  paymentdto.CheckoutResponse:
+    properties:
+      sessionId:
+        example: cs_test_123
+        type: string
+      url:
+        example: https://checkout.stripe.com/pay/cs_test_123
+        type: string
+    type: object
+  paymentdto.ErrorAlias:
+    properties:
+      error:
+        example: payment required
+        type: string
+    type: object
+  paymentdto.MessageAlias:
+    properties:
+      message:
+        example: ok
+        type: string
+    type: object
+  ticketdto.CreateTicket:
+    properties:
+      currency:
+        example: USD
+        type: string
+      description:
+        example: Standing floor access.
+        maxLength: 2000
+        type: string
+      maxPerOrder:
+        example: 4
+        minimum: 1
+        type: integer
+      name:
+        example: General Admission
+        maxLength: 255
+        minLength: 1
+        type: string
+      priceCents:
+        example: 2500
+        minimum: 0
+        type: integer
+      quantityTotal:
+        example: 200
+        minimum: 1
+        type: integer
+      saleEndsAt:
+        example: "2026-07-31T23:59:59Z"
+        type: string
+      saleStartsAt:
+        example: "2026-07-01T00:00:00Z"
+        type: string
+    required:
+    - name
+    - quantityTotal
+    type: object
+  ticketdto.ErrorAlias:
+    properties:
+      error:
+        example: sold out
+        type: string
+    type: object
+  ticketdto.MessageAlias:
+    properties:
+      message:
+        example: Ticket type deleted
+        type: string
+    type: object
+  ticketdto.TicketType:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      currency:
+        example: USD
+        type: string
+      description:
+        type: string
+      eventId:
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        type: string
+      forSale:
+        example: true
+        type: boolean
+      id:
+        example: 6f708192-0314-2b3c-4d5e-6f708192a3b4
+        type: string
+      maxPerOrder:
+        example: 4
+        type: integer
+      name:
+        example: General Admission
+        type: string
+      priceCents:
+        example: 2500
+        type: integer
+      quantitySold:
+        example: 37
+        type: integer
+      quantityTotal:
+        example: 200
+        type: integer
+      remaining:
+        example: 163
+        type: integer
+      saleEndsAt:
+        example: "2026-07-31T23:59:59Z"
+        type: string
+      saleStartsAt:
+        example: "2026-07-01T00:00:00Z"
+        type: string
+      soldOut:
+        example: false
+        type: boolean
+      status:
+        example: ACTIVE
+        type: string
+      unavailableReason:
+        example: sold_out
+        type: string
+    type: object
+  ticketdto.TicketsPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/ticketdto.TicketType'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  ticketdto.UpdateTicket:
+    properties:
+      currency:
+        type: string
+      description:
+        maxLength: 2000
+        type: string
+      maxPerOrder:
+        minimum: 1
+        type: integer
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      priceCents:
+        minimum: 0
+        type: integer
+      quantityTotal:
+        minimum: 1
+        type: integer
+      saleEndsAt:
+        type: string
+      saleStartsAt:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -163,6 +839,100 @@ info:
   title: Rallya API
   version: "1.0"
 paths:
+  /attendees/{id}:
+    get:
+      description: QR payloads arrive by confirmation email (hash-only storage cannot
+        re-issue them).
+      parameters:
+      - description: Attendee UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.Attendee'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get my attendee record
+      tags:
+      - attendees
+  /attendees/{id}/cancel:
+    post:
+      description: Flips to CANCELLED (audit trail kept).
+      parameters:
+      - description: Attendee UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.Attendee'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Cancel my attendance
+      tags:
+      - attendees
+  /attendees/mine:
+    get:
+      description: QR payloads arrive by confirmation email (raw tokens are hash-only
+        at rest and cannot be re-issued here).
+      parameters:
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.AttendeesPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List my attendee records
+      tags:
+      - attendees
   /auth/forgot-password:
     post:
       consumes:
@@ -267,8 +1037,8 @@ paths:
       - auth
   /auth/me:
     get:
-      description: Returns id, email, verification flag, and profile names for the
-        access-token owner.
+      description: Returns id, email, verification flag, profile names, and org memberships
+        for the access-token owner.
       parameters:
       - description: Bearer access token
         example: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYTIzYiJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
@@ -502,6 +1272,1909 @@ paths:
       summary: Verify email address
       tags:
       - auth
+  /events:
+    get:
+      description: Public discovery across orgs, filterable and paginated.
+      parameters:
+      - description: Org slug filter
+        example: acme
+        in: query
+        name: org
+        type: string
+      - description: Status filter
+        example: PUBLISHED
+        in: query
+        name: status
+        type: string
+      - description: RFC3339 start
+        example: "2026-01-01T00:00:00Z"
+        in: query
+        name: from
+        type: string
+      - description: RFC3339 end
+        example: "2026-12-31T23:59:59Z"
+        in: query
+        name: to
+        type: string
+      - description: Title search
+        example: fest
+        in: query
+        name: q
+        type: string
+      - description: starts|created
+        example: starts
+        in: query
+        name: sort
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.EventsPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      summary: List published events
+      tags:
+      - events
+  /events/{id}:
+    get:
+      description: Public detail by UUID. Drafts/cancelled return 404.
+      parameters:
+      - description: Event UUID
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      summary: Get published event
+      tags:
+      - events
+  /events/{id}/orders:
+    post:
+      consumes:
+      - application/json
+      description: Claims inventory atomically; free orders confirm immediately, priced
+        wait for payments. Idempotent via idempotencyKey.
+      parameters:
+      - description: Event UUID
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Order payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orderdto.CreateOrder'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/orderdto.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "409":
+          description: Sold out
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create order
+      tags:
+      - orders
+  /events/{id}/tickets:
+    get:
+      description: Active types with live availability. No purchase flow yet (orders
+        module).
+      parameters:
+      - description: Event UUID
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketsPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      summary: List tickets for sale
+      tags:
+      - tickets
+  /orders/{id}:
+    get:
+      description: Owners see their own; org admins via support path. Others get 404.
+      parameters:
+      - description: Order UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orderdto.Order'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get order
+      tags:
+      - orders
+  /orders/{id}/cancel:
+    post:
+      description: Releases held inventory. Terminal states rejected. Priced refunds
+        arrive with payments.
+      parameters:
+      - description: Order UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orderdto.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Cancel order
+      tags:
+      - orders
+  /orders/{id}/checkout:
+    post:
+      description: Returns a hosted Checkout Session URL for a priced order awaiting
+        payment. Free orders 400 (nothing to pay).
+      parameters:
+      - description: Order UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/paymentdto.CheckoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+        "503":
+          description: Stripe unconfigured
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create Stripe checkout
+      tags:
+      - payments
+  /orders/mine:
+    get:
+      description: Caller history, newest first, paginated.
+      parameters:
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orderdto.OrdersPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orderdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List my orders
+      tags:
+      - orders
+  /orgs:
+    get:
+      description: Orgs the caller belongs to, with roles. Used for org switching
+        and GET /auth/me bootstrap.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/orgdto.Org'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List my organizations
+      tags:
+      - orgs
+    post:
+      consumes:
+      - application/json
+      description: Creates a tenant org; the caller becomes OWNER.
+      parameters:
+      - description: Org payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.CreateOrg'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/orgdto.Org'
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Slug taken
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create organization
+      tags:
+      - orgs
+  /orgs/{id}:
+    delete:
+      description: Hard delete; memberships and invites cascade.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Delete organization
+      tags:
+      - orgs
+    get:
+      description: Org details; :id accepts UUID or slug. Non-members get 404.
+      parameters:
+      - description: Org UUID or slug
+        example: acme
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.Org'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get organization
+      tags:
+      - orgs
+    patch:
+      consumes:
+      - application/json
+      description: Rename / re-slug / logo. Slug conflicts return 409.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.UpdateOrg'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.Org'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update organization
+      tags:
+      - orgs
+  /orgs/{id}/events:
+    get:
+      description: Paginated, filterable; includes drafts for members.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: DRAFT/PUBLISHED/CANCELLED
+        example: PUBLISHED
+        in: query
+        name: status
+        type: string
+      - description: RFC3339 start
+        example: "2026-01-01T00:00:00Z"
+        in: query
+        name: from
+        type: string
+      - description: RFC3339 end
+        example: "2026-12-31T23:59:59Z"
+        in: query
+        name: to
+        type: string
+      - description: Title search
+        example: fest
+        in: query
+        name: q
+        type: string
+      - description: starts|created
+        example: starts
+        in: query
+        name: sort
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.EventsPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List org events
+      tags:
+      - events
+    post:
+      consumes:
+      - application/json
+      description: Creates a DRAFT event under the org; slug auto-uniquifies per org.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/eventdto.CreateEvent'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create event
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}:
+    delete:
+      description: Hard delete with cover cleanup.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Delete event
+      tags:
+      - events
+    get:
+      description: Drafts require membership; :eventId accepts UUID or slug.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get org event
+      tags:
+      - events
+    patch:
+      consumes:
+      - application/json
+      description: Field updates; status changes go through publish/unpublish/cancel.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/eventdto.UpdateEvent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update event
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/attendees:
+    get:
+      description: Paginated with name/email search. No QR payloads (door use only).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Name/email search
+        example: jane
+        in: query
+        name: q
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.AttendeesPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List event roster
+      tags:
+      - attendees
+    post:
+      consumes:
+      - application/json
+      description: Walk-ins, comps, staff. Email need not belong to an account.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Attendee payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/attendeedto.AddAttendee'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/attendeedto.Attendee'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Add attendee manually
+      tags:
+      - attendees
+  /orgs/{id}/events/{eventId}/attendees/{attendeeId}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Attendee UUID
+        in: path
+        name: attendeeId
+        required: true
+        type: string
+      - description: Fields to correct
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/attendeedto.CorrectAttendee'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.Attendee'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Correct attendee name/email
+      tags:
+      - attendees
+  /orgs/{id}/events/{eventId}/cancel:
+    post:
+      description: PUBLISHED → CANCELLED (terminal).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Cancel event
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/cover:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Multipart file (jpeg/png/webp, 5MB max, content-sniffed). Replaces
+        existing cover.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Image file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Upload event cover
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/images:
+    get:
+      description: All uploaded images with provider metadata, oldest first.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.ImagesPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List event gallery
+      tags:
+      - events
+    post:
+      consumes:
+      - multipart/form-data
+      description: Multipart files[] (up to 10, jpeg/png/webp, 5MB each, content-sniffed).
+        When the event has no cover yet, the first image becomes the cover.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - collectionFormat: multi
+        description: Image files (repeat field per file)
+        in: formData
+        items:
+          type: file
+        name: files
+        required: true
+        type: array
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/eventdto.ImagesPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Upload gallery images
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/publish:
+    post:
+      description: DRAFT → PUBLISHED; queues announcements to opted-in members.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Publish event
+      tags:
+      - events
+  /orgs/{id}/events/{eventId}/tickets:
+    get:
+      description: All types incl. drafts, with live availability.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketsPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List ticket types
+      tags:
+      - tickets
+    post:
+      consumes:
+      - application/json
+      description: Prices one admission tier; starts DRAFT. Capacity coupling enforced
+        both ways.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ticketdto.CreateTicket'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "409":
+          description: Capacity exceeded
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create ticket type
+      tags:
+      - tickets
+  /orgs/{id}/events/{eventId}/tickets/{ticketId}:
+    delete:
+      description: Only with zero sales; sold history survives.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "409":
+          description: Has sales
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Delete ticket type
+      tags:
+      - tickets
+    get:
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get ticket type
+      tags:
+      - tickets
+    patch:
+      consumes:
+      - application/json
+      description: Quantity cuts below sold and capacity violations rejected.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ticketdto.UpdateTicket'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update ticket type
+      tags:
+      - tickets
+  /orgs/{id}/events/{eventId}/tickets/{ticketId}/activate:
+    post:
+      description: DRAFT/PAUSED → ACTIVE.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Activate ticket type
+      tags:
+      - tickets
+  /orgs/{id}/events/{eventId}/tickets/{ticketId}/pause:
+    post:
+      description: ACTIVE → PAUSED (reversible; distinct from computed SOLD_OUT).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Ticket UUID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ticketdto.TicketType'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ticketdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Pause ticket type
+      tags:
+      - tickets
+  /orgs/{id}/events/{eventId}/unpublish:
+    post:
+      description: PUBLISHED → DRAFT.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/eventdto.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/eventdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Unpublish event
+      tags:
+      - events
+  /orgs/{id}/invites:
+    get:
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.InvitesPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List pending invites
+      tags:
+      - orgs
+    post:
+      consumes:
+      - application/json
+      description: Creates a 7d invite and queues the invite email. Supersedes pending
+        invites for the email.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Invite payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.InviteMember'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Invite sent
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Already a member
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Invite by email
+      tags:
+      - orgs
+  /orgs/{id}/invites/{inviteId}:
+    delete:
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Invite UUID
+        in: path
+        name: inviteId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Revoke invite
+      tags:
+      - orgs
+  /orgs/{id}/members:
+    get:
+      description: Paginated memberships with identity display data.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MembersPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List members
+      tags:
+      - orgs
+    post:
+      consumes:
+      - application/json
+      description: Adds a registered user; use invites for non-registered emails.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Member payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.AddMember'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/orgdto.Member'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Already a member
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Add member directly
+      tags:
+      - orgs
+  /orgs/{id}/members/{userId}:
+    delete:
+      description: ADMIN+ may remove MEMBER/ADMIN; only OWNER removes OWNER. Self-leave
+        allowed except last OWNER.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Member user UUID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Last owner
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Remove member or leave
+      tags:
+      - orgs
+    patch:
+      consumes:
+      - application/json
+      description: Demoting the last OWNER is rejected.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Member user UUID
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: Role payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.UpdateMemberRole'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.Member'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Last owner
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Change member role
+      tags:
+      - orgs
+  /orgs/{id}/members/me:
+    patch:
+      consumes:
+      - application/json
+      description: Opt in or out of publish announcement emails for this org.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Preference payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.UpdateMyPreferences'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Preferences updated
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update my announcement preference
+      tags:
+      - orgs
+  /orgs/invites/accept:
+    post:
+      consumes:
+      - application/json
+      description: Caller account email must match the invite. Creates the membership;
+        idempotent for members.
+      parameters:
+      - description: Invite token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.AcceptInvite'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.Org'
+        "400":
+          description: Invalid/expired or email mismatch
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Accept invite
+      tags:
+      - orgs
+  /orgs/invites/decline:
+    post:
+      consumes:
+      - application/json
+      description: Rejects a pending invite addressed to the caller. Idempotent; accepted
+        invites cannot be declined.
+      parameters:
+      - description: Invite token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.DeclineInvite'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Invite declined
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Already accepted
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Decline invite
+      tags:
+      - orgs
+  /webhooks/stripe:
+    post:
+      consumes:
+      - application/json
+      description: Signature-verified fulfillment endpoint. Send raw event JSON with
+        a valid Stripe-Signature header.
+      parameters:
+      - description: HMAC signature
+        example: t=1492774577,v1=5257a869e7ecebeda32affa9cfc0f4
+        in: header
+        name: Stripe-Signature
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ok / ignored
+          schema:
+            $ref: '#/definitions/paymentdto.MessageAlias'
+        "400":
+          description: Bad signature / empty payload
+          schema:
+            $ref: '#/definitions/paymentdto.ErrorAlias'
+      summary: Stripe webhook
+      tags:
+      - payments
 securityDefinitions:
   BearerAuth:
     description: '"Bearer <accessToken> from POST /auth/login (or /auth/refresh)."'

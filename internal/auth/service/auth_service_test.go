@@ -46,7 +46,7 @@ func TestLoginBlockedUntilVerified(t *testing.T) {
 	_, _, svc := testutil.Setup(t)
 	mustRegister(t, svc)
 
-	_, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, service.LoginContext{})
+	_, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, dto.LoginContext{})
 	if !errors.Is(err, service.ErrEmailNotVerified) {
 		t.Fatalf("expected ErrEmailNotVerified, got %v", err)
 	}
@@ -74,7 +74,7 @@ func TestVerifyThenLoginAndMe(t *testing.T) {
 		t.Fatalf("expected ErrInvalidToken, got %v", err)
 	}
 
-	pair, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, service.LoginContext{
+	pair, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, dto.LoginContext{
 		IPAddress: "127.0.0.1", UserAgent: "test", DeviceName: "laptop",
 	})
 	if err != nil {
@@ -96,11 +96,11 @@ func TestVerifyThenLoginAndMe(t *testing.T) {
 	}
 
 	// Wrong password.
-	if _, err := svc.Login(dto.Login{Email: testEmail, Password: "wrong"}, service.LoginContext{}); !errors.Is(err, service.ErrInvalidCredentials) {
+	if _, err := svc.Login(dto.Login{Email: testEmail, Password: "wrong"}, dto.LoginContext{}); !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
 	// Unknown email.
-	if _, err := svc.Login(dto.Login{Email: "nobody@test.com", Password: "x"}, service.LoginContext{}); !errors.Is(err, service.ErrInvalidCredentials) {
+	if _, err := svc.Login(dto.Login{Email: "nobody@test.com", Password: "x"}, dto.LoginContext{}); !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
 }
@@ -200,10 +200,10 @@ func TestResetPasswordInvalidatesSessions(t *testing.T) {
 		t.Fatal("expected refresh to fail after reset")
 	}
 	// Old password dead, new password works.
-	if _, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, service.LoginContext{}); !errors.Is(err, service.ErrInvalidCredentials) {
+	if _, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, dto.LoginContext{}); !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials for old password, got %v", err)
 	}
-	pair2, err := svc.Login(dto.Login{Email: testEmail, Password: "N3wStr0ngP@ss!"}, service.LoginContext{})
+	pair2, err := svc.Login(dto.Login{Email: testEmail, Password: "N3wStr0ngP@ss!"}, dto.LoginContext{})
 	if err != nil {
 		t.Fatalf("login with new password: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestSuspendedUserBlocked(t *testing.T) {
 	if err := db.Model(&model.User{}).Where("id = ?", u.ID).Update("status", model.UserStatusSuspended).Error; err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if _, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, service.LoginContext{}); !errors.Is(err, service.ErrAccountSuspended) {
+	if _, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, dto.LoginContext{}); !errors.Is(err, service.ErrAccountSuspended) {
 		t.Fatalf("expected ErrAccountSuspended, got %v", err)
 	}
 }
@@ -269,7 +269,7 @@ func mustVerifiedLogin(t *testing.T, repo *repository.AuthRepository, svc *servi
 	if err := svc.VerifyEmail(raw); err != nil {
 		t.Fatalf("verify: %v", err)
 	}
-	pair, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, service.LoginContext{})
+	pair, err := svc.Login(dto.Login{Email: testEmail, Password: testPassword}, dto.LoginContext{})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}

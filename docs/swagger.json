@@ -9,6 +9,151 @@
     "host": "localhost:8080",
     "basePath": "/api/v1",
     "paths": {
+        "/attendees/mine": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "QR payloads arrive by confirmation email (raw tokens are hash-only at rest and cannot be re-issued here).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attendees"
+                ],
+                "summary": "List my attendee records",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.AttendeesPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/attendees/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "QR payloads arrive by confirmation email (hash-only storage cannot re-issue them).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attendees"
+                ],
+                "summary": "Get my attendee record",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attendee UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.Attendee"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/attendees/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Flips to CANCELLED (audit trail kept).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attendees"
+                ],
+                "summary": "Cancel my attendance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attendee UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.Attendee"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/forgot-password": {
             "post": {
                 "description": "Invalidates prior reset tokens and emails a 1h single-use link if the account exists. Always returns 200.",
@@ -168,7 +313,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns id, email, verification flag, and profile names for the access-token owner.",
+                "description": "Returns id, email, verification flag, profile names, and org memberships for the access-token owner.",
                 "produces": [
                     "application/json"
                 ],
@@ -513,9 +658,3020 @@
                     }
                 }
             }
+        },
+        "/events": {
+            "get": {
+                "description": "Public discovery across orgs, filterable and paginated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "List published events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "acme",
+                        "description": "Org slug filter",
+                        "name": "org",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "PUBLISHED",
+                        "description": "Status filter",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2026-01-01T00:00:00Z",
+                        "description": "RFC3339 start",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2026-12-31T23:59:59Z",
+                        "description": "RFC3339 end",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "fest",
+                        "description": "Title search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "starts",
+                        "description": "starts|created",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.EventsPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}": {
+            "get": {
+                "description": "Public detail by UUID. Drafts/cancelled return 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Get published event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d",
+                        "description": "Event UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.Event"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/orders": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Claims inventory atomically; free orders confirm immediately, priced wait for payments. Idempotent via idempotencyKey.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Create order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d",
+                        "description": "Event UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Order payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.CreateOrder"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.Order"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Sold out",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/tickets": {
+            "get": {
+                "description": "Active types with live availability. No purchase flow yet (orders module).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "List tickets for sale",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d",
+                        "description": "Event UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketsPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/mine": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Caller history, newest first, paginated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "List my orders",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.OrdersPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Owners see their own; org admins via support path. Others get 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Get order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.Order"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Releases held inventory. Terminal states rejected. Priced refunds arrive with payments.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Cancel order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.Order"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orderdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}/checkout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a hosted Checkout Session URL for a priced order awaiting payment. Free orders 400 (nothing to pay).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Create Stripe checkout",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/paymentdto.CheckoutResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/paymentdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/paymentdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/paymentdto.ErrorAlias"
+                        }
+                    },
+                    "503": {
+                        "description": "Stripe unconfigured",
+                        "schema": {
+                            "$ref": "#/definitions/paymentdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Orgs the caller belongs to, with roles. Used for org switching and GET /auth/me bootstrap.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "List my organizations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/orgdto.Org"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a tenant org; the caller becomes OWNER.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Create organization",
+                "parameters": [
+                    {
+                        "description": "Org payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.CreateOrg"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Org"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Slug taken",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/invites/accept": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Caller account email must match the invite. Creates the membership; idempotent for members.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Accept invite",
+                "parameters": [
+                    {
+                        "description": "Invite token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.AcceptInvite"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Org"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid/expired or email mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/invites/decline": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rejects a pending invite addressed to the caller. Idempotent; accepted invites cannot be declined.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Decline invite",
+                "parameters": [
+                    {
+                        "description": "Invite token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.DeclineInvite"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Invite declined",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Already accepted",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Org details; :id accepts UUID or slug. Non-members get 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Get organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "acme",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Org"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete; memberships and invites cascade.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Delete organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rename / re-slug / logo. Slug conflicts return 409.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Update organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.UpdateOrg"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Org"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Paginated, filterable; includes drafts for members.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "List org events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "PUBLISHED",
+                        "description": "DRAFT/PUBLISHED/CANCELLED",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2026-01-01T00:00:00Z",
+                        "description": "RFC3339 start",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2026-12-31T23:59:59Z",
+                        "description": "RFC3339 end",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "fest",
+                        "description": "Title search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "starts",
+                        "description": "starts|created",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.EventsPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a DRAFT event under the org; slug auto-uniquifies per org.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Create event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Event payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.CreateEvent"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.Event"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Drafts require membership; :eventId accepts UUID or slug.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Get org event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.Event"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete with cover cleanup.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Delete event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Field updates; status changes go through publish/unpublish/cancel.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Update event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.UpdateEvent"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.Event"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/attendees": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Paginated with name/email search. No QR payloads (door use only).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attendees"
+                ],
+                "summary": "List event roster",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "jane",
+                        "description": "Name/email search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.AttendeesPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Walk-ins, comps, staff. Email need not belong to an account.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attendees"
+                ],
+                "summary": "Add attendee manually",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Attendee payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.AddAttendee"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.Attendee"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/attendees/{attendeeId}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attendees"
+                ],
+                "summary": "Correct attendee name/email",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Attendee UUID",
+                        "name": "attendeeId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to correct",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.CorrectAttendee"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.Attendee"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/attendeedto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "PUBLISHED → CANCELLED (terminal).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Cancel event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.Event"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/cover": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Multipart file (jpeg/png/webp, 5MB max, content-sniffed). Replaces existing cover.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Upload event cover",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Image file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.Event"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/images": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "All uploaded images with provider metadata, oldest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "List event gallery",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ImagesPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Multipart files[] (up to 10, jpeg/png/webp, 5MB each, content-sniffed). When the event has no cover yet, the first image becomes the cover.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Upload gallery images",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "file"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "Image files (repeat field per file)",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ImagesPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/publish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "DRAFT → PUBLISHED; queues announcements to opted-in members.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Publish event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.Event"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/tickets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "All types incl. drafts, with live availability.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "List ticket types",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketsPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Prices one admission tier; starts DRAFT. Capacity coupling enforced both ways.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Create ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Ticket payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.CreateTicket"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Capacity exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/tickets/{ticketId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Get ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Only with zero sales; sold history survives.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Delete ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Has sales",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Quantity cuts below sold and capacity violations rejected.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Update ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.UpdateTicket"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/tickets/{ticketId}/activate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "DRAFT/PAUSED → ACTIVE.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Activate ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/tickets/{ticketId}/pause": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "ACTIVE → PAUSED (reversible; distinct from computed SOLD_OUT).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "Pause ticket type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ticket UUID",
+                        "name": "ticketId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.TicketType"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ticketdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/unpublish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "PUBLISHED → DRAFT.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Unpublish event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.Event"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/eventdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/invites": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "List pending invites",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.InvitesPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a 7d invite and queues the invite email. Supersedes pending invites for the email.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Invite by email",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Invite payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.InviteMember"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Invite sent",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Already a member",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/invites/{inviteId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Revoke invite",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Invite UUID",
+                        "name": "inviteId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/members": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Paginated memberships with identity display data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "List members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "example": 1,
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Page size, max 100",
+                        "name": "perPage",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MembersPage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Adds a registered user; use invites for non-registered emails.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Add member directly",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Member payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.AddMember"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Member"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Already a member",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/members/me": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Opt in or out of publish announcement emails for this org.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Update my announcement preference",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Preference payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.UpdateMyPreferences"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Preferences updated",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/members/{userId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "ADMIN+ may remove MEMBER/ADMIN; only OWNER removes OWNER. Self-leave allowed except last OWNER.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Remove member or leave",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member user UUID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.MessageAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Last owner",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Demoting the last OWNER is rejected.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orgs"
+                ],
+                "summary": "Change member role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member user UUID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Role payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.UpdateMemberRole"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.Member"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Last owner",
+                        "schema": {
+                            "$ref": "#/definitions/orgdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhooks/stripe": {
+            "post": {
+                "description": "Signature-verified fulfillment endpoint. Send raw event JSON with a valid Stripe-Signature header.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Stripe webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "t=1492774577,v1=5257a869e7ecebeda32affa9cfc0f4",
+                        "description": "HMAC signature",
+                        "name": "Stripe-Signature",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "ok / ignored",
+                        "schema": {
+                            "$ref": "#/definitions/paymentdto.MessageAlias"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad signature / empty payload",
+                        "schema": {
+                            "$ref": "#/definitions/paymentdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "attendeedto.AddAttendee": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "walkin@test.com"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "Walk In"
+                }
+            }
+        },
+        "attendeedto.Attendee": {
+            "type": "object",
+            "properties": {
+                "checkedInAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "jane@test.com"
+                },
+                "eventId": {
+                    "type": "string",
+                    "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "8a8192a3-1425-3c4d-5e6f-708192a3b4c5"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Jane Doe"
+                },
+                "orderId": {
+                    "type": "string",
+                    "example": "7a8192a3-1425-3c4d-5e6f-708192a3b4c5"
+                },
+                "qrPayload": {
+                    "type": "string",
+                    "example": "8a8192a3….hmac"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "REGISTERED"
+                },
+                "unitIndex": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "userId": {
+                    "type": "string"
+                }
+            }
+        },
+        "attendeedto.AttendeesPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/attendeedto.Attendee"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "attendeedto.CorrectAttendee": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "jane@test.com"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "Jane Doe"
+                }
+            }
+        },
+        "attendeedto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "attendee not found"
+                }
+            }
+        },
         "dto.EmailNotVerifiedResponse": {
             "type": "object",
             "properties": {
@@ -586,6 +3742,13 @@
                     "type": "string",
                     "example": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
                 },
+                "organizations": {
+                    "description": "Organizations is omitted when no membership integration is wired.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.OrgMembership"
+                    }
+                },
                 "profile": {
                     "$ref": "#/definitions/dto.Profile"
                 }
@@ -597,6 +3760,31 @@
                 "message": {
                     "type": "string",
                     "example": "Verification email sent"
+                }
+            }
+        },
+        "dto.OrgMembership": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d"
+                },
+                "joinedAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Acme Inc"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "ADMIN"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "acme"
                 }
             }
         },
@@ -730,6 +3918,812 @@
                     "type": "string",
                     "minLength": 1,
                     "example": "b7e2d1c0a9f84620c3d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3"
+                }
+            }
+        },
+        "eventdto.CreateEvent": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "capacity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 500
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "example": "Three days of music downtown."
+                },
+                "endsAt": {
+                    "type": "string",
+                    "example": "2026-08-03T22:00:00Z"
+                },
+                "location": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "Lagos, Nigeria"
+                },
+                "slug": {
+                    "type": "string",
+                    "maxLength": 150,
+                    "example": "summer-fest-2026"
+                },
+                "startsAt": {
+                    "type": "string",
+                    "example": "2026-08-01T10:00:00Z"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "Summer Fest 2026"
+                },
+                "venue": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "Central Park Amphitheatre"
+                }
+            }
+        },
+        "eventdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "event not found"
+                }
+            }
+        },
+        "eventdto.Event": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "coverUrl": {
+                    "type": "string",
+                    "example": "/uploads/events/acme/x7f2k9.jpg"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "endsAt": {
+                    "type": "string",
+                    "example": "2026-08-03T22:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "summer-fest-2026"
+                },
+                "startsAt": {
+                    "type": "string",
+                    "example": "2026-08-01T10:00:00Z"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "PUBLISHED"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Summer Fest 2026"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "venue": {
+                    "type": "string"
+                }
+            }
+        },
+        "eventdto.EventImage": {
+            "type": "object",
+            "properties": {
+                "bytes": {
+                    "type": "integer",
+                    "example": 204800
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "format": {
+                    "type": "string",
+                    "example": "png"
+                },
+                "height": {
+                    "type": "integer",
+                    "example": 800
+                },
+                "id": {
+                    "type": "string",
+                    "example": "5e6f7081-9203-1b2c-3d4e-5f60718293a4"
+                },
+                "publicId": {
+                    "type": "string",
+                    "example": "rallya/events/acme/ev-ab12"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://res.cloudinary.com/demo/image/upload/v1/rallya/events/acme/ev-ab12.png"
+                },
+                "width": {
+                    "type": "integer",
+                    "example": 1200
+                }
+            }
+        },
+        "eventdto.EventsPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/eventdto.Event"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "eventdto.ImagesPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/eventdto.EventImage"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "eventdto.MessageAlias": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Event published"
+                }
+            }
+        },
+        "eventdto.UpdateEvent": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "clearCover": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 10000
+                },
+                "endsAt": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "slug": {
+                    "type": "string",
+                    "maxLength": 150,
+                    "example": "summer-fest"
+                },
+                "startsAt": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "Summer Fest 2026"
+                },
+                "venue": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "orderdto.CreateOrder": {
+            "type": "object",
+            "required": [
+                "quantity",
+                "ticketTypeId"
+            ],
+            "properties": {
+                "idempotencyKey": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "order-req-001"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 2
+                },
+                "ticketTypeId": {
+                    "type": "string",
+                    "example": "6f708192-0314-2b3c-4d5e-6f708192a3b4"
+                }
+            }
+        },
+        "orderdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "sold out"
+                }
+            }
+        },
+        "orderdto.Order": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "eventId": {
+                    "type": "string",
+                    "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:15:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7a8192a3-1425-3c4d-5e6f-708192a3b4c5"
+                },
+                "priceCents": {
+                    "type": "integer",
+                    "example": 5000
+                },
+                "quantity": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "status": {
+                    "type": "string",
+                    "example": "CONFIRMED"
+                },
+                "ticketTypeId": {
+                    "type": "string",
+                    "example": "6f708192-0314-2b3c-4d5e-6f708192a3b4"
+                }
+            }
+        },
+        "orderdto.OrdersPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orderdto.Order"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "orgdto.AcceptInvite": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "example": "d9e4f3a2b1c04852e5f6a708192b3c4d5e6f8091a2b3c4d5e6f708192b3"
+                }
+            }
+        },
+        "orgdto.AddMember": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "jane@test.com"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "example": "MEMBER"
+                }
+            }
+        },
+        "orgdto.CreateOrg": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "logo": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "example": "https://example.com/logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "Acme Inc"
+                },
+                "slug": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "acme"
+                }
+            }
+        },
+        "orgdto.DeclineInvite": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "example": "d9e4f3a2b1c04852e5f6a708192b3c4d5e6f8091a2b3c4d5e6f708192b3"
+                }
+            }
+        },
+        "orgdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "insufficient role"
+                }
+            }
+        },
+        "orgdto.Invite": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "jane@test.com"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-09-26T12:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3c4d5e6f-7081-9a0b-1c2d-3e4f5a6b7c8d"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "MEMBER"
+                }
+            }
+        },
+        "orgdto.InviteMember": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "jane@test.com"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "example": "MEMBER"
+                }
+            }
+        },
+        "orgdto.InvitesPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orgdto.Invite"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "orgdto.Member": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "jane@test.com"
+                },
+                "emailVerified": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "joinedAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Jane"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "MEMBER"
+                },
+                "userId": {
+                    "type": "string",
+                    "example": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+                }
+            }
+        },
+        "orgdto.MembersPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orgdto.Member"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "orgdto.MessageAlias": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Invite sent"
+                }
+            }
+        },
+        "orgdto.Org": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "2b3c4d5e-6f70-8a9b-0c1d-2e3f4a5b6c7d"
+                },
+                "logoUrl": {
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Acme Inc"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "OWNER"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "acme"
+                }
+            }
+        },
+        "orgdto.UpdateMemberRole": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "example": "ADMIN"
+                }
+            }
+        },
+        "orgdto.UpdateMyPreferences": {
+            "type": "object",
+            "properties": {
+                "notifyEvents": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "orgdto.UpdateOrg": {
+            "type": "object",
+            "properties": {
+                "logo": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "example": "https://example.com/logo2.png"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "Acme Corp"
+                },
+                "slug": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "acme"
+                }
+            }
+        },
+        "paymentdto.CheckoutResponse": {
+            "type": "object",
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "example": "cs_test_123"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://checkout.stripe.com/pay/cs_test_123"
+                }
+            }
+        },
+        "paymentdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "payment required"
+                }
+            }
+        },
+        "paymentdto.MessageAlias": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "ok"
+                }
+            }
+        },
+        "ticketdto.CreateTicket": {
+            "type": "object",
+            "required": [
+                "name",
+                "quantityTotal"
+            ],
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "example": "Standing floor access."
+                },
+                "maxPerOrder": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 4
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "General Admission"
+                },
+                "priceCents": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2500
+                },
+                "quantityTotal": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 200
+                },
+                "saleEndsAt": {
+                    "type": "string",
+                    "example": "2026-07-31T23:59:59Z"
+                },
+                "saleStartsAt": {
+                    "type": "string",
+                    "example": "2026-07-01T00:00:00Z"
+                }
+            }
+        },
+        "ticketdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "sold out"
+                }
+            }
+        },
+        "ticketdto.MessageAlias": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Ticket type deleted"
+                }
+            }
+        },
+        "ticketdto.TicketType": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2026-09-19T12:00:00Z"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "eventId": {
+                    "type": "string",
+                    "example": "4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d"
+                },
+                "forSale": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "id": {
+                    "type": "string",
+                    "example": "6f708192-0314-2b3c-4d5e-6f708192a3b4"
+                },
+                "maxPerOrder": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "name": {
+                    "type": "string",
+                    "example": "General Admission"
+                },
+                "priceCents": {
+                    "type": "integer",
+                    "example": 2500
+                },
+                "quantitySold": {
+                    "type": "integer",
+                    "example": 37
+                },
+                "quantityTotal": {
+                    "type": "integer",
+                    "example": 200
+                },
+                "remaining": {
+                    "type": "integer",
+                    "example": 163
+                },
+                "saleEndsAt": {
+                    "type": "string",
+                    "example": "2026-07-31T23:59:59Z"
+                },
+                "saleStartsAt": {
+                    "type": "string",
+                    "example": "2026-07-01T00:00:00Z"
+                },
+                "soldOut": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "status": {
+                    "type": "string",
+                    "example": "ACTIVE"
+                },
+                "unavailableReason": {
+                    "type": "string",
+                    "example": "sold_out"
+                }
+            }
+        },
+        "ticketdto.TicketsPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ticketdto.TicketType"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "ticketdto.UpdateTicket": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "maxPerOrder": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "priceCents": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "quantityTotal": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "saleEndsAt": {
+                    "type": "string"
+                },
+                "saleStartsAt": {
+                    "type": "string"
                 }
             }
         }

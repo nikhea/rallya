@@ -5,10 +5,12 @@ package jobs
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
+	"github.com/skip2/go-qrcode"
 	"gorm.io/gorm"
 
 	"github.com/nikhea/rallya/internal/notification"
@@ -52,6 +54,50 @@ type SendWelcomeEmailArgs struct {
 }
 
 func (SendWelcomeEmailArgs) Kind() string { return "send_welcome_email" }
+
+// SendOrgInviteEmailArgs renders the organization invitation email.
+type SendOrgInviteEmailArgs struct {
+	OrgID       uuid.UUID `json:"orgId"`
+	OrgName     string    `json:"orgName"`
+	OrgSlug     string    `json:"orgSlug"`
+	Email       string    `json:"email"`
+	Name        string    `json:"name"`
+	Role        string    `json:"role"`
+	InviterName string    `json:"inviterName"`
+	InviteLink  string    `json:"inviteLink"`
+}
+
+func (SendOrgInviteEmailArgs) Kind() string { return "send_org_invite_email" }
+
+// SendEventPublishedEmailArgs renders the publish announcement email.
+type SendEventPublishedEmailArgs struct {
+	EventID    uuid.UUID `json:"eventId"`
+	EventTitle string    `json:"eventTitle"`
+	OrgName    string    `json:"orgName"`
+	Email      string    `json:"email"`
+	Name       string    `json:"name"`
+	EventLink  string    `json:"eventLink"`
+}
+
+func (SendEventPublishedEmailArgs) Kind() string { return "send_event_published_email" }
+
+// OrderConfirmationItem is one ticket unit's scannable payload.
+type OrderConfirmationItem struct {
+	QRPayload string `json:"qrPayload"`
+}
+
+// SendOrderConfirmationEmailArgs renders the buyer confirmation email.
+// QRPayloads are rendered to inline QR PNGs at send time (raw tokens never
+// persist beyond job args retention).
+type SendOrderConfirmationEmailArgs struct {
+	OrderID    uuid.UUID               `json:"orderId"`
+	Email      string                  `json:"email"`
+	Name       string                  `json:"name"`
+	EventTitle string                  `json:"eventTitle"`
+	Items      []OrderConfirmationItem `json:"items"`
+}
+
+func (SendOrderConfirmationEmailArgs) Kind() string { return "send_order_confirmation_email" }
 
 // ---------- workers ----------
 
@@ -106,12 +152,84 @@ func (w *WelcomeEmailWorker) Work(ctx context.Context, job *river.Job[SendWelcom
 	return nil
 }
 
+// OrgInviteEmailWorker sends the organization invitation email.
+type OrgInviteEmailWorker struct {
+	river.WorkerDefaults[SendOrgInviteEmailArgs]
+}
+
+func (w *OrgInviteEmailWorker) Work(ctx context.Context, job *river.Job[SendOrgInviteEmailArgs]) error {
+	a := job.Args
+	r := templates.RenderOrgInvite(templates.OrgInviteData{
+		AppName: notification.AppName(), Name: a.Name, OrgName: a.OrgName,
+		Role: a.Role, InviterName: a.InviterName, InviteLink: a.InviteLink,
+	})
+	slog.Info("sending org invite email", "to", a.Email, "org", a.OrgSlug, "job", job.ID)
+	if err := mailer.Send(a.Email, r.Subject, r.Text, r.HTML); err != nil {
+		return err
+	}
+	return nil
+}
+
+// EventPublishedEmailWorker sends the publish announcement email.
+type EventPublishedEmailWorker struct {
+	river.WorkerDefaults[SendEventPublishedEmailArgs]
+}
+
+func (w *EventPublishedEmailWorker) Work(ctx context.Context, job *river.Job[SendEventPublishedEmailArgs]) error {
+	a := job.Args
+	r := templates.RenderEventPublished(templates.EventPublishedData{
+		AppName: notification.AppName(), Name: a.Name, OrgName: a.OrgName,
+		EventTitle: a.EventTitle, EventLink: a.EventLink,
+	})
+	slog.Info("sending event published email", "to", a.Email, "event", a.EventID, "job", job.ID)
+	if err := mailer.Send(a.Email, r.Subject, r.Text, r.HTML); err != nil {
+		return err
+	}
+	return nil
+}
+
+// OrderConfirmationEmailWorker sends the buyer confirmation with inline QRs.
+type OrderConfirmationEmailWorker struct {
+	river.WorkerDefaults[SendOrderConfirmationEmailArgs]
+}
+
+func (w *OrderConfirmationEmailWorker) Work(ctx context.Context, job *river.Job[SendOrderConfirmationEmailArgs]) error {
+	a := job.Args
+	codes := make([]templates.OrderConfirmationQR, 0, len(a.Items))
+	images := make([]mailer.InlineImage, 0, len(a.Items))
+	for i, it := range a.Items {
+		cid := fmt.Sprintf("qr%d", i)
+		codes = append(codes, templates.OrderConfirmationQR{
+			ContentID: cid, Payload: it.QRPayload, No: i + 1,
+		})
+		png, err := qrcode.Encode(it.QRPayload, qrcode.Medium, 256)
+		if err != nil {
+			return err // River retries with backoff
+		}
+		images = append(images, mailer.InlineImage{
+			ContentID: cid, MIME: "image/png", Data: png,
+		})
+	}
+	r := templates.RenderOrderConfirmation(templates.OrderConfirmationData{
+		AppName: notification.AppName(), Name: a.Name,
+		EventTitle: a.EventTitle, Total: len(codes), Codes: codes,
+	})
+	slog.Info("sending order confirmation email", "to", a.Email, "order", a.OrderID, "job", job.ID)
+	if err := mailer.SendWithImages(a.Email, r.Subject, r.Text, r.HTML, images); err != nil {
+		return err
+	}
+	return nil
+}
+
 // AddAll registers every email worker. Panics on misconfiguration
 // (fail-fast at boot, per River convention).
 func AddAll(workers *river.Workers) {
 	river.AddWorker(workers, &VerificationEmailWorker{})
 	river.AddWorker(workers, &PasswordResetEmailWorker{})
 	river.AddWorker(workers, &WelcomeEmailWorker{})
+	river.AddWorker(workers, &OrgInviteEmailWorker{})
+	river.AddWorker(workers, &EventPublishedEmailWorker{})
+	river.AddWorker(workers, &OrderConfirmationEmailWorker{})
 }
 
 // ---------- enqueue contract ----------

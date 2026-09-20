@@ -17,11 +17,37 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/nikhea/rallya/cmd/config"
+	attendee "github.com/nikhea/rallya/internal/attendee"
+	attendeehandler "github.com/nikhea/rallya/internal/attendee/handler"
+	attendeerepository "github.com/nikhea/rallya/internal/attendee/repository"
+	attendeeservice "github.com/nikhea/rallya/internal/attendee/service"
 	auth "github.com/nikhea/rallya/internal/auth"
 	"github.com/nikhea/rallya/internal/auth/handler"
 	"github.com/nikhea/rallya/internal/auth/repository"
 	"github.com/nikhea/rallya/internal/auth/service"
+	event "github.com/nikhea/rallya/internal/event"
+	"github.com/nikhea/rallya/internal/event/cover"
+	eventhandler "github.com/nikhea/rallya/internal/event/handler"
+	eventrepository "github.com/nikhea/rallya/internal/event/repository"
+	eventservice "github.com/nikhea/rallya/internal/event/service"
+	"github.com/nikhea/rallya/internal/iam"
 	"github.com/nikhea/rallya/internal/notification/jobs"
+	order "github.com/nikhea/rallya/internal/order"
+	orderhandler "github.com/nikhea/rallya/internal/order/handler"
+	orderjobs "github.com/nikhea/rallya/internal/order/jobs"
+	orderrepository "github.com/nikhea/rallya/internal/order/repository"
+	orderservice "github.com/nikhea/rallya/internal/order/service"
+	organization "github.com/nikhea/rallya/internal/organization"
+	orghandler "github.com/nikhea/rallya/internal/organization/handler"
+	orgrepository "github.com/nikhea/rallya/internal/organization/repository"
+	orgservice "github.com/nikhea/rallya/internal/organization/service"
+	payment "github.com/nikhea/rallya/internal/payment"
+	paymenthandler "github.com/nikhea/rallya/internal/payment/handler"
+	paymentservice "github.com/nikhea/rallya/internal/payment/service"
+	ticketing "github.com/nikhea/rallya/internal/ticketing"
+	tickethandler "github.com/nikhea/rallya/internal/ticketing/handler"
+	ticketrepository "github.com/nikhea/rallya/internal/ticketing/repository"
+	ticketservice "github.com/nikhea/rallya/internal/ticketing/service"
 
 	_ "github.com/nikhea/rallya/docs"
 )
@@ -99,6 +125,94 @@ func main() {
 			})
 		})
 		auth.RegisterRoutes(api.Group("/auth"), authHandler, authRepo)
+
+		// IAM (Casbin): enforcer over the shared handle; policies seeded
+		// per-org by the organization domain, superadmins from env.
+		enforcer, err := iam.NewEnforcer(config.DB)
+		if err != nil {
+			slog.Error("Casbin enforcer failed", "error", err)
+			os.Exit(1)
+		}
+		if err := iam.SeedSuperAdmins(enforcer, authSvc, config.SuperAdminEmails()); err != nil {
+			slog.Error("Superadmin seed failed", "error", err)
+			os.Exit(1)
+		}
+
+		// Organization domain: consumes auth via UserReader; mail via River.
+		orgRepo := orgrepository.NewOrgRepository(config.DB)
+		orgSvc := orgservice.NewOrgService(orgRepo, authSvc)
+		orgSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		orgSvc.SetGroupSyncer(iam.NewMembershipSyncer(enforcer))
+		orgSvc.SetPolicySeeder(iam.NewOrgPolicySeeder(enforcer))
+		orgHandler := orghandler.NewHandler(orgSvc)
+		organization.RegisterRoutes(api.Group("/orgs"), orgHandler, orgRepo, authRepo, enforcer)
+
+		// Events domain: org-scoped CRUD + publish + covers.
+		eventRepo := eventrepository.NewEventRepository(config.DB)
+		eventSvc := eventservice.NewEventService(eventRepo, orgSvc)
+		eventSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		if cld, err := cover.NewCloudinary(); err != nil {
+			slog.Warn("Cloudinary unconfigured, covers stay on local disk", "error", err)
+			eventSvc.SetCoverStorage(cover.NewLocal("./uploads"))
+		} else {
+			slog.Info("Cover storage: Cloudinary")
+			eventSvc.SetCoverStorage(cld)
+		}
+		eventHandler := eventhandler.NewHandler(eventSvc)
+		event.RegisterRoutes(api, eventHandler, authRepo, orgRepo, enforcer)
+
+		// Ticketing domain: types + pricing + rules over the event adapter.
+		ticketRepo := ticketrepository.NewTicketRepository(config.DB)
+		ticketSvc := ticketservice.NewTicketService(ticketRepo, ticketservice.NewEventAdapter(eventSvc))
+		ticketHandler := tickethandler.NewHandler(ticketSvc)
+		ticketing.RegisterRoutes(api, ticketHandler, authRepo, orgRepo, enforcer)
+		// Org delete cleans event assets via the event seam (rows cascade).
+		orgSvc.SetAssetCleaner(eventSvc)
+
+		// Orders domain: claims against ticket inventory + hold sweeper.
+		orderRepo := orderrepository.NewOrderRepository(config.DB)
+		orderSvc := orderservice.NewOrderService(orderRepo, ticketSvc, eventSvc, orgSvc, authSvc)
+		orderSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		// QR secret resolved once here: fail-closed at boot, never per-request
+		// (a missing secret must not os.Exit inside a handler).
+		orderSvc.SetQRSecret(config.QRSigningSecret())
+		orderHandler := orderhandler.NewHandler(orderSvc)
+		order.RegisterRoutes(api, orderHandler, authRepo)
+		river.AddWorker(workers, &orderjobs.SweepExpiredOrdersWorker{Svc: orderSvc})
+		riverClient.PeriodicJobs().Add(river.NewPeriodicJob(
+			river.PeriodicInterval(5*time.Minute),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return orderjobs.SweepExpiredOrdersArgs{}, nil
+			}, nil))
+
+		// Attendees domain: door records minted from confirmations.
+		attendeeRepo := attendeerepository.NewAttendeeRepository(config.DB)
+		attendeeSvc := attendeeservice.NewAttendeeService(attendeeRepo, authSvc, eventSvc, orgSvc)
+		attendeeHandler := attendeehandler.NewHandler(attendeeSvc)
+		attendee.RegisterRoutes(api, attendeeHandler, authRepo, orgRepo, enforcer)
+		orderSvc.SetAttendeeMinter(attendeeSvc)
+
+		// Payments domain: Stripe Checkout + webhooks. Degrades to 503s
+		// when unconfigured; boot never fails for missing keys.
+		var checkout paymentservice.CheckoutProvider
+		if stripeProvider, err := paymentservice.NewStripeCheckout(); err != nil {
+			slog.Warn("Stripe unconfigured, checkout disabled", "error", err)
+		} else {
+			checkout = stripeProvider
+		}
+		paymentSvc := paymentservice.NewPaymentService(orderSvc, checkout)
+		paymentHandler := paymenthandler.NewHandler(paymentSvc, config.AppURL())
+		payment.RegisterRoutes(api, paymentHandler, authRepo)
+
+		// Cover images + uploads served read-only (local disk for MVP).
+		if err := os.MkdirAll("./uploads", 0o755); err != nil {
+			slog.Error("Uploads dir failed", "error", err)
+			os.Exit(1)
+		}
+		router.Static("/uploads", "./uploads")
+
+		// GET /auth/me embeds org context (nil-safe when unwired).
+		authHandler.SetMembershipLister(orgSvc)
 	}
 
 	port := os.Getenv("APP_PORT")
