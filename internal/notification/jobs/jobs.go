@@ -5,10 +5,12 @@ package jobs
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
+	"github.com/skip2/go-qrcode"
 	"gorm.io/gorm"
 
 	"github.com/nikhea/rallya/internal/notification"
@@ -78,6 +80,24 @@ type SendEventPublishedEmailArgs struct {
 }
 
 func (SendEventPublishedEmailArgs) Kind() string { return "send_event_published_email" }
+
+// OrderConfirmationItem is one ticket unit's scannable payload.
+type OrderConfirmationItem struct {
+	QRPayload string `json:"qrPayload"`
+}
+
+// SendOrderConfirmationEmailArgs renders the buyer confirmation email.
+// QRPayloads are rendered to inline QR PNGs at send time (raw tokens never
+// persist beyond job args retention).
+type SendOrderConfirmationEmailArgs struct {
+	OrderID    uuid.UUID               `json:"orderId"`
+	Email      string                  `json:"email"`
+	Name       string                  `json:"name"`
+	EventTitle string                  `json:"eventTitle"`
+	Items      []OrderConfirmationItem `json:"items"`
+}
+
+func (SendOrderConfirmationEmailArgs) Kind() string { return "send_order_confirmation_email" }
 
 // ---------- workers ----------
 
@@ -168,6 +188,39 @@ func (w *EventPublishedEmailWorker) Work(ctx context.Context, job *river.Job[Sen
 	return nil
 }
 
+// OrderConfirmationEmailWorker sends the buyer confirmation with inline QRs.
+type OrderConfirmationEmailWorker struct {
+	river.WorkerDefaults[SendOrderConfirmationEmailArgs]
+}
+
+func (w *OrderConfirmationEmailWorker) Work(ctx context.Context, job *river.Job[SendOrderConfirmationEmailArgs]) error {
+	a := job.Args
+	codes := make([]templates.OrderConfirmationQR, 0, len(a.Items))
+	images := make([]mailer.InlineImage, 0, len(a.Items))
+	for i, it := range a.Items {
+		cid := fmt.Sprintf("qr%d", i)
+		codes = append(codes, templates.OrderConfirmationQR{
+			ContentID: cid, Payload: it.QRPayload, No: i + 1,
+		})
+		png, err := qrcode.Encode(it.QRPayload, qrcode.Medium, 256)
+		if err != nil {
+			return err // River retries with backoff
+		}
+		images = append(images, mailer.InlineImage{
+			ContentID: cid, MIME: "image/png", Data: png,
+		})
+	}
+	r := templates.RenderOrderConfirmation(templates.OrderConfirmationData{
+		AppName: notification.AppName(), Name: a.Name,
+		EventTitle: a.EventTitle, Total: len(codes), Codes: codes,
+	})
+	slog.Info("sending order confirmation email", "to", a.Email, "order", a.OrderID, "job", job.ID)
+	if err := mailer.SendWithImages(a.Email, r.Subject, r.Text, r.HTML, images); err != nil {
+		return err
+	}
+	return nil
+}
+
 // AddAll registers every email worker. Panics on misconfiguration
 // (fail-fast at boot, per River convention).
 func AddAll(workers *river.Workers) {
@@ -176,6 +229,7 @@ func AddAll(workers *river.Workers) {
 	river.AddWorker(workers, &WelcomeEmailWorker{})
 	river.AddWorker(workers, &OrgInviteEmailWorker{})
 	river.AddWorker(workers, &EventPublishedEmailWorker{})
+	river.AddWorker(workers, &OrderConfirmationEmailWorker{})
 }
 
 // ---------- enqueue contract ----------

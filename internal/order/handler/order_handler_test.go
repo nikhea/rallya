@@ -90,7 +90,7 @@ func newOrderFixture(t *testing.T) *orderFixture {
 	ticketSvc := ticketservice.NewTicketService(ticketRepo, ticketservice.NewEventAdapter(eventSvc))
 
 	orderRepo := orderrepository.NewOrderRepository(db)
-	orderSvc := orderservice.NewOrderService(orderRepo, ticketSvc, eventSvc, orgSvc)
+	orderSvc := orderservice.NewOrderService(orderRepo, ticketSvc, eventSvc, orgSvc, authSvc)
 	orderHandler := handler.NewHandler(orderSvc)
 
 	r := gin.New()

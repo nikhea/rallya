@@ -10,6 +10,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	attendeeutils "github.com/nikhea/rallya/internal/attendee/utils"
+	auth "github.com/nikhea/rallya/internal/auth"
+	"github.com/nikhea/rallya/internal/notification/jobs"
 	orderdto "github.com/nikhea/rallya/internal/order/dto"
 	"github.com/nikhea/rallya/internal/order/model"
 	"github.com/nikhea/rallya/internal/order/repository"
@@ -40,18 +43,46 @@ type OrgAccess interface {
 	CanManage(userID, orgID uuid.UUID) bool
 }
 
-// OrderService orchestrates order flows.
-type OrderService struct {
-	repo    *repository.OrderRepository
-	tickets TicketStore
-	events  EventLookup
-	orgs    OrgAccess
+// AttendeeMinter mints door records for confirmed orders. Declared here
+// (consumer side); attendee implements it. Nil-safe: skipped when unwired.
+type AttendeeMinter interface {
+	MintForOrder(tx *gorm.DB, orderID, userID, eventID uuid.UUID, email, name string, quantity int) ([]MintedAttendee, error)
+	CancelForOrder(tx *gorm.DB, orderID uuid.UUID) error
 }
 
-// NewOrderService builds the service. All three collaborators required.
-func NewOrderService(repo *repository.OrderRepository, tickets TicketStore, events EventLookup, orgs OrgAccess) *OrderService {
-	return &OrderService{repo: repo, tickets: tickets, events: events, orgs: orgs}
+// MintedAttendee is one minted row plus its raw token (email-embed only).
+type MintedAttendee struct {
+	ID      uuid.UUID
+	QRToken string
 }
+
+// OrderService orchestrates order flows.
+type OrderService struct {
+	repo     *repository.OrderRepository
+	tickets  TicketStore
+	events   EventLookup
+	orgs     OrgAccess
+	users    auth.UserReader
+	minter   AttendeeMinter
+	enqueuer jobs.Enqueuer
+	qrSecret []byte
+}
+
+// NewOrderService builds the service. tickets/events/orgs/users required;
+// minter/enqueuer wired via setters, nil-safe when absent (tests).
+func NewOrderService(repo *repository.OrderRepository, tickets TicketStore, events EventLookup, orgs OrgAccess, users auth.UserReader) *OrderService {
+	return &OrderService{repo: repo, tickets: tickets, events: events, orgs: orgs, users: users}
+}
+
+// SetAttendeeMinter wires door-record minting.
+func (s *OrderService) SetAttendeeMinter(m AttendeeMinter) { s.minter = m }
+
+// SetEnqueuer wires River job insertion (confirmation emails).
+func (s *OrderService) SetEnqueuer(e jobs.Enqueuer) { s.enqueuer = e }
+
+// SetQRSecret wires the QR HMAC secret (resolved once at boot; fail-closed
+// there, never per-request — os.Exit in a handler would kill the process).
+func (s *OrderService) SetQRSecret(secret []byte) { s.qrSecret = secret }
 
 // CreateInput carries the claim request.
 type CreateInput struct {
@@ -117,11 +148,76 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, eventID uuid.UUI
 		if err := s.tickets.ReserveTx(tx, mustParseUUID(tt.ID), in.Quantity); err != nil {
 			return morphReserveErr(err)
 		}
-		return s.repo.CreateOrder(tx, o)
+		if err := s.repo.CreateOrder(tx, o); err != nil {
+			return err
+		}
+		// Free orders confirm immediately: mint door records + queue the
+		// buyer email atomically with the order.
+		if o.Status == model.OrderStatusConfirmed {
+			minted, err := s.mintTx(tx, o, userID)
+			if err != nil {
+				return err
+			}
+			if err := s.enqueueConfirmation(tx, o, userID, minted); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		return nil, err
 	}
 	return toOrder(o), nil
+}
+
+// mintTx mints attendee rows inside the confirmation tx (nil-safe).
+// Returns minted rows with raw tokens for email embedding.
+func (s *OrderService) mintTx(tx *gorm.DB, o *model.Order, userID uuid.UUID) ([]MintedAttendee, error) {
+	if s.minter == nil {
+		return nil, nil
+	}
+	u, err := s.users.GetUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	var name string
+	if u.Profile != nil && u.Profile.FirstName != nil {
+		name = *u.Profile.FirstName
+	}
+	if name == "" {
+		name = u.Email
+	}
+	return s.minter.MintForOrder(tx, o.ID, userID, o.EventID, u.Email, name, o.Quantity)
+}
+
+// enqueueConfirmation builds QR payloads from freshly minted tokens and
+// queues the buyer email in-tx (nil-safe without minter/enqueuer/secret;
+// boot guarantees the secret in production).
+func (s *OrderService) enqueueConfirmation(tx *gorm.DB, o *model.Order, userID uuid.UUID, minted []MintedAttendee) error {
+	if s.enqueuer == nil || len(minted) == 0 || len(s.qrSecret) == 0 {
+		return nil
+	}
+	u, err := s.users.GetUserByID(userID)
+	if err != nil {
+		return err
+	}
+	title, err := s.events.EventTitle(o.EventID)
+	if err != nil {
+		return err
+	}
+	items := make([]jobs.OrderConfirmationItem, 0, len(minted))
+	for _, m := range minted {
+		items = append(items, jobs.OrderConfirmationItem{
+			QRPayload: attendeeutils.BuildPayload(m.ID, m.QRToken, s.qrSecret),
+		})
+	}
+	name := u.Email
+	if u.Profile != nil && u.Profile.FirstName != nil && *u.Profile.FirstName != "" {
+		name = *u.Profile.FirstName
+	}
+	return s.enqueuer.EnqueueTx(context.Background(), tx, jobs.SendOrderConfirmationEmailArgs{
+		OrderID: o.ID, Email: u.Email, Name: name,
+		EventTitle: title, Items: items,
+	})
 }
 
 // GetOrder returns an order to its owner (or org ADMIN+ via admin path).

@@ -44,7 +44,8 @@ func TestSweeperWorkerSweeps(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 	repo := repository.NewOrderRepository(db)
-	svc := service.NewOrderService(repo, stubTickets{}, stubDeps{}, stubDeps{})
+	users := testutil.NewFakeUserReader()
+	svc := service.NewOrderService(repo, stubTickets{}, stubDeps{}, stubDeps{}, users)
 	w := &SweepExpiredOrdersWorker{Svc: svc}
 	job := &river.Job[SweepExpiredOrdersArgs]{
 		JobRow: &rivertype.JobRow{ID: 2},

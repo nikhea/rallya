@@ -780,3 +780,13 @@ func (s *EventService) EventTitle(eventID uuid.UUID) (string, error) {
 	}
 	return e.Title, nil
 }
+
+// ResolveEventID resolves an event ref within an org (internal cross-domain
+// use: attendee routes carry org context + event slug/UUID).
+func (s *EventService) ResolveEventID(orgID uuid.UUID, ref string) (uuid.UUID, error) {
+	e, err := s.resolveEvent(orgID, ref)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return e.ID, nil
+}

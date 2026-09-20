@@ -93,3 +93,31 @@ func SuperAdminEmails() []string {
 	}
 	return out
 }
+
+// QRSigningSecret returns the HMAC secret for QR payload signatures.
+// Fail-closes exactly like JWTSecret: missing or short (<32 byte) secrets
+// exit the process unless ALLOW_INSECURE_JWT=true (local dev only).
+func QRSigningSecret() []byte {
+	secret := os.Getenv("QR_SIGNING_SECRET")
+	insecureAllowed := os.Getenv("ALLOW_INSECURE_JWT") == "true"
+	fallback := []byte("dev-only-insecure-qr-secret-change-me-00")
+	if secret == "" || secret == string(fallback) {
+		if insecureAllowed {
+			slog.Warn("QR_SIGNING_SECRET not securely set, using insecure dev fallback", "hint", "Set a 32+ byte QR_SIGNING_SECRET in production")
+			return fallback
+		}
+		slog.Error("QR_SIGNING_SECRET must be set to 32+ random bytes (or set ALLOW_INSECURE_JWT=true for local dev only)")
+		os.Exit(1)
+		return nil
+	}
+	if len(secret) < 32 {
+		if insecureAllowed {
+			slog.Warn("QR_SIGNING_SECRET shorter than 32 bytes", "hint", "Use 32+ random bytes in production")
+			return []byte(secret)
+		}
+		slog.Error("QR_SIGNING_SECRET must be 32+ bytes", "hint", "Generate with: openssl rand -hex 32")
+		os.Exit(1)
+		return nil
+	}
+	return []byte(secret)
+}

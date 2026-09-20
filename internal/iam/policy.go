@@ -13,11 +13,12 @@ import (
 
 // Objects and actions gated by RequirePermission.
 const (
-	ObjOrg    = "org"
-	ObjMember = "member"
-	ObjInvite = "invite"
-	ObjEvent  = "event"
-	ObjTicket = "ticket"
+	ObjOrg      = "org"
+	ObjMember   = "member"
+	ObjInvite   = "invite"
+	ObjEvent    = "event"
+	ObjTicket   = "ticket"
+	ObjAttendee = "attendee"
 
 	ActRead    = "read"
 	ActCreate  = "create"
@@ -56,6 +57,9 @@ func AdminPermissions() []Permission {
 		{ObjTicket, ActCreate},
 		{ObjTicket, ActUpdate},
 		{ObjTicket, ActDelete},
+		{ObjAttendee, ActRead},
+		{ObjAttendee, ActCreate},
+		{ObjAttendee, ActUpdate},
 	}
 }
 

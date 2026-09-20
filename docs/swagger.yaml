@@ -1,5 +1,79 @@
 basePath: /api/v1
 definitions:
+  attendeedto.AddAttendee:
+    properties:
+      email:
+        example: walkin@test.com
+        maxLength: 255
+        type: string
+      name:
+        example: Walk In
+        maxLength: 255
+        type: string
+    required:
+    - email
+    type: object
+  attendeedto.Attendee:
+    properties:
+      checkedInAt:
+        type: string
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      email:
+        example: jane@test.com
+        type: string
+      eventId:
+        example: 4d5e6f70-8192-0a1b-2c3d-4e5f6a7b8c9d
+        type: string
+      id:
+        example: 8a8192a3-1425-3c4d-5e6f-708192a3b4c5
+        type: string
+      name:
+        example: Jane Doe
+        type: string
+      orderId:
+        example: 7a8192a3-1425-3c4d-5e6f-708192a3b4c5
+        type: string
+      qrPayload:
+        example: 8a8192a3….hmac
+        type: string
+      status:
+        example: REGISTERED
+        type: string
+      unitIndex:
+        example: 0
+        type: integer
+      userId:
+        type: string
+    type: object
+  attendeedto.AttendeesPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/attendeedto.Attendee'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  attendeedto.CorrectAttendee:
+    properties:
+      email:
+        example: jane@test.com
+        maxLength: 255
+        type: string
+      name:
+        example: Jane Doe
+        maxLength: 255
+        type: string
+    type: object
+  attendeedto.ErrorAlias:
+    properties:
+      error:
+        example: attendee not found
+        type: string
+    type: object
   dto.EmailNotVerifiedResponse:
     properties:
       code:
@@ -765,6 +839,100 @@ info:
   title: Rallya API
   version: "1.0"
 paths:
+  /attendees/{id}:
+    get:
+      description: QR payloads arrive by confirmation email (hash-only storage cannot
+        re-issue them).
+      parameters:
+      - description: Attendee UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.Attendee'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Get my attendee record
+      tags:
+      - attendees
+  /attendees/{id}/cancel:
+    post:
+      description: Flips to CANCELLED (audit trail kept).
+      parameters:
+      - description: Attendee UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.Attendee'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Cancel my attendance
+      tags:
+      - attendees
+  /attendees/mine:
+    get:
+      description: QR payloads arrive by confirmation email (raw tokens are hash-only
+        at rest and cannot be re-issued here).
+      parameters:
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.AttendeesPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List my attendee records
+      tags:
+      - attendees
   /auth/forgot-password:
     post:
       consumes:
@@ -1804,6 +1972,162 @@ paths:
       summary: Update event
       tags:
       - events
+  /orgs/{id}/events/{eventId}/attendees:
+    get:
+      description: Paginated with name/email search. No QR payloads (door use only).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Name/email search
+        example: jane
+        in: query
+        name: q
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.AttendeesPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List event roster
+      tags:
+      - attendees
+    post:
+      consumes:
+      - application/json
+      description: Walk-ins, comps, staff. Email need not belong to an account.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Attendee payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/attendeedto.AddAttendee'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/attendeedto.Attendee'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Add attendee manually
+      tags:
+      - attendees
+  /orgs/{id}/events/{eventId}/attendees/{attendeeId}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Attendee UUID
+        in: path
+        name: attendeeId
+        required: true
+        type: string
+      - description: Fields to correct
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/attendeedto.CorrectAttendee'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/attendeedto.Attendee'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/attendeedto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Correct attendee name/email
+      tags:
+      - attendees
   /orgs/{id}/events/{eventId}/cancel:
     post:
       description: PUBLISHED → CANCELLED (terminal).

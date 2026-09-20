@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	authmodel "github.com/nikhea/rallya/internal/auth/model"
 	"github.com/nikhea/rallya/internal/auth/testutil"
+	"github.com/nikhea/rallya/internal/notification/jobs"
 	ordermodel "github.com/nikhea/rallya/internal/order/model"
 	"github.com/nikhea/rallya/internal/order/repository"
 	"github.com/nikhea/rallya/internal/order/service"
@@ -133,11 +135,14 @@ func newOrderFixture(t *testing.T) *orderFixture {
 	repo := repository.NewOrderRepository(db)
 	ticks := newFakeTickets()
 	deps := &fakeDeps{orgs: map[uuid.UUID]uuid.UUID{}, admins: map[uuid.UUID]bool{}}
-	svc := service.NewOrderService(repo, ticks, deps, deps)
+	users := testutil.NewFakeUserReader()
+	userID := uuid.New()
+	users.Add(&authmodel.User{ID: userID, Email: "buyer@test.com", EmailVerified: true, Status: authmodel.UserStatusActive})
+	svc := service.NewOrderService(repo, ticks, deps, deps, users)
 	event := uuid.New()
 	org := uuid.New()
 	deps.orgs[event] = org
-	return &orderFixture{db: db, svc: svc, repo: repo, ticks: ticks, deps: deps, event: event, org: org, user: uuid.New()}
+	return &orderFixture{db: db, svc: svc, repo: repo, ticks: ticks, deps: deps, event: event, org: org, user: userID}
 }
 
 func TestCreateFreeConfirmsImmediately(t *testing.T) {
@@ -393,5 +398,50 @@ func TestMarkPaidIdempotent(t *testing.T) {
 	got, err := f.svc.GetOrder(f.user, oid)
 	if err != nil || got.Status != "CONFIRMED" {
 		t.Fatalf("get: %+v %v", got, err)
+	}
+}
+
+// stubMinter records mint calls.
+type stubMinter struct {
+	calls   int
+	lastQty int
+}
+
+func (s *stubMinter) MintForOrder(_ *gorm.DB, _, _, _ uuid.UUID, _, _ string, qty int) ([]service.MintedAttendee, error) {
+	s.calls++
+	out := make([]service.MintedAttendee, 0, qty)
+	for i := 0; i < qty; i++ {
+		out = append(out, service.MintedAttendee{ID: uuid.New(), QRToken: "tok"})
+	}
+	s.lastQty = qty
+	return out, nil
+}
+
+func (s *stubMinter) CancelForOrder(_ *gorm.DB, _ uuid.UUID) error { return nil }
+
+func TestFreeConfirmMintsAndEmails(t *testing.T) {
+	f := newOrderFixture(t)
+	minter := &stubMinter{}
+	fakeMail := &jobs.FakeEnqueuer{}
+	f.svc.SetAttendeeMinter(minter)
+	f.svc.SetEnqueuer(fakeMail)
+	f.svc.SetQRSecret([]byte("test-qr-secret-32-bytes-long-abcdef"))
+	_ = fakeMail
+	typeID := uuid.New()
+	f.ticks.addType(typeID, f.event, 0, 10, nil, true)
+
+	if _, err := f.svc.CreateOrder(context.Background(), f.user, f.event, service.CreateInput{Quantity: 2, TicketTypeID: typeID}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if minter.calls != 1 || minter.lastQty != 2 {
+		t.Fatalf("expected 1 mint of 2, got %+v", minter)
+	}
+	mail := fakeMail.OfKind("send_order_confirmation_email")
+	if len(mail) != 1 {
+		t.Fatalf("expected 1 confirmation job, got %d", len(mail))
+	}
+	args, ok := mail[0].(jobs.SendOrderConfirmationEmailArgs)
+	if !ok || len(args.Items) != 2 || args.Email != "buyer@test.com" {
+		t.Fatalf("bad job args: %+v", mail[0])
 	}
 }

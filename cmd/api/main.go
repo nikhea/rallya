@@ -17,6 +17,10 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/nikhea/rallya/cmd/config"
+	attendee "github.com/nikhea/rallya/internal/attendee"
+	attendeehandler "github.com/nikhea/rallya/internal/attendee/handler"
+	attendeerepository "github.com/nikhea/rallya/internal/attendee/repository"
+	attendeeservice "github.com/nikhea/rallya/internal/attendee/service"
 	auth "github.com/nikhea/rallya/internal/auth"
 	"github.com/nikhea/rallya/internal/auth/handler"
 	"github.com/nikhea/rallya/internal/auth/repository"
@@ -167,7 +171,11 @@ func main() {
 
 		// Orders domain: claims against ticket inventory + hold sweeper.
 		orderRepo := orderrepository.NewOrderRepository(config.DB)
-		orderSvc := orderservice.NewOrderService(orderRepo, ticketSvc, eventSvc, orgSvc)
+		orderSvc := orderservice.NewOrderService(orderRepo, ticketSvc, eventSvc, orgSvc, authSvc)
+		orderSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		// QR secret resolved once here: fail-closed at boot, never per-request
+		// (a missing secret must not os.Exit inside a handler).
+		orderSvc.SetQRSecret(config.QRSigningSecret())
 		orderHandler := orderhandler.NewHandler(orderSvc)
 		order.RegisterRoutes(api, orderHandler, authRepo)
 		river.AddWorker(workers, &orderjobs.SweepExpiredOrdersWorker{Svc: orderSvc})
@@ -176,6 +184,13 @@ func main() {
 			func() (river.JobArgs, *river.InsertOpts) {
 				return orderjobs.SweepExpiredOrdersArgs{}, nil
 			}, nil))
+
+		// Attendees domain: door records minted from confirmations.
+		attendeeRepo := attendeerepository.NewAttendeeRepository(config.DB)
+		attendeeSvc := attendeeservice.NewAttendeeService(attendeeRepo, authSvc, eventSvc, orgSvc)
+		attendeeHandler := attendeehandler.NewHandler(attendeeSvc)
+		attendee.RegisterRoutes(api, attendeeHandler, authRepo, orgRepo, enforcer)
+		orderSvc.SetAttendeeMinter(attendeeSvc)
 
 		// Payments domain: Stripe Checkout + webhooks. Degrades to 503s
 		// when unconfigured; boot never fails for missing keys.

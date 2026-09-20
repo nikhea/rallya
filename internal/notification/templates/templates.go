@@ -7,6 +7,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"strings"
 )
 
 //go:embed *.html
@@ -18,6 +19,7 @@ var (
 	welcomeTmpl   = template.Must(template.ParseFS(FS, "welcome_email.html"))
 	inviteTmpl    = template.Must(template.ParseFS(FS, "org_invite_email.html"))
 	publishedTmpl = template.Must(template.ParseFS(FS, "event_published_email.html"))
+	confirmTmpl   = template.Must(template.ParseFS(FS, "order_confirmation_email.html"))
 )
 
 // VerifyEmailData feeds verify_email.html (OTP code + link button).
@@ -59,6 +61,22 @@ type EventPublishedData struct {
 	OrgName    string
 	EventTitle string
 	EventLink  string
+}
+
+// OrderConfirmationQR is one ticket's scannable block.
+type OrderConfirmationQR struct {
+	ContentID string
+	Payload   string
+	No        int
+}
+
+// OrderConfirmationData feeds order_confirmation_email.html.
+type OrderConfirmationData struct {
+	AppName    string
+	Name       string
+	EventTitle string
+	Total      int
+	Codes      []OrderConfirmationQR
 }
 
 // Rendered is a subject + multipart body pair.
@@ -138,5 +156,21 @@ func RenderEventPublished(d EventPublishedData) Rendered {
 		Subject: fmt.Sprintf("%s is live — %s", d.EventTitle, d.AppName),
 		HTML:    render(publishedTmpl, d),
 		Text:    text,
+	}
+}
+
+// RenderOrderConfirmation builds the buyer confirmation email.
+func RenderOrderConfirmation(d OrderConfirmationData) Rendered {
+	var text strings.Builder
+	fmt.Fprintf(&text, "Hi %s,\n\nYour order for %s is confirmed (%d ticket(s)).\n\n",
+		d.Name, d.EventTitle, d.Total)
+	for _, c := range d.Codes {
+		fmt.Fprintf(&text, "Ticket %d of %d code:\n%s\n\n", c.No, d.Total, c.Payload)
+	}
+	text.WriteString("Show a code at the door to check in.\n")
+	return Rendered{
+		Subject: fmt.Sprintf("Your tickets for %s — %s", d.EventTitle, d.AppName),
+		HTML:    render(confirmTmpl, d),
+		Text:    text.String(),
 	}
 }
