@@ -74,6 +74,67 @@ definitions:
         example: attendee not found
         type: string
     type: object
+  checkindto.BatchRequest:
+    properties:
+      codes:
+        example:
+        - <uuid>.<token>.<hmac>
+        items:
+          type: string
+        type: array
+    type: object
+  checkindto.BatchResult:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/checkindto.ScanResult'
+        type: array
+    type: object
+  checkindto.ErrorAlias:
+    properties:
+      error:
+        example: event not found
+        type: string
+    type: object
+  checkindto.ScanRequest:
+    properties:
+      attendeeId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      code:
+        example: <uuid>.<token>.<hmac>
+        type: string
+    type: object
+  checkindto.ScanResult:
+    properties:
+      attendeeId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      checkedInAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      method:
+        example: qr
+        type: string
+      outcome:
+        example: CHECKED_IN
+        type: string
+    type: object
+  checkindto.StatsResponse:
+    properties:
+      cancelled:
+        example: 3
+        type: integer
+      checkedIn:
+        example: 45
+        type: integer
+      registered:
+        example: 120
+        type: integer
+      total:
+        example: 168
+        type: integer
+    type: object
   dto.EmailNotVerifiedResponse:
     properties:
       code:
@@ -2170,6 +2231,149 @@ paths:
       summary: Cancel event
       tags:
       - events
+  /orgs/{id}/events/{eventId}/checkin:
+    post:
+      consumes:
+      - application/json
+      description: QR string or roster attendee ID. Refusals return 200 with their
+        outcome.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Code or attendee ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/checkindto.ScanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/checkindto.ScanResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Scan one code
+      tags:
+      - checkin
+  /orgs/{id}/events/{eventId}/checkin/batch:
+    post:
+      consumes:
+      - application/json
+      description: QR-only, per-item outcomes, no fail-fast. Max 50 codes.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: QR codes
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/checkindto.BatchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/checkindto.BatchResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Scan a batch of codes
+      tags:
+      - checkin
+  /orgs/{id}/events/{eventId}/checkin/stats:
+    get:
+      description: Registered / checked-in / cancelled tallies for one event.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/checkindto.StatsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/checkindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Door-dashboard counts
+      tags:
+      - checkin
   /orgs/{id}/events/{eventId}/cover:
     post:
       consumes:

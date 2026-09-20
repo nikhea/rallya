@@ -25,6 +25,10 @@ import (
 	"github.com/nikhea/rallya/internal/auth/handler"
 	"github.com/nikhea/rallya/internal/auth/repository"
 	"github.com/nikhea/rallya/internal/auth/service"
+	checkin "github.com/nikhea/rallya/internal/checkin"
+	checkinhandler "github.com/nikhea/rallya/internal/checkin/handler"
+	checkinrepository "github.com/nikhea/rallya/internal/checkin/repository"
+	checkinservice "github.com/nikhea/rallya/internal/checkin/service"
 	event "github.com/nikhea/rallya/internal/event"
 	"github.com/nikhea/rallya/internal/event/cover"
 	eventhandler "github.com/nikhea/rallya/internal/event/handler"
@@ -191,6 +195,14 @@ func main() {
 		attendeeHandler := attendeehandler.NewHandler(attendeeSvc)
 		attendee.RegisterRoutes(api, attendeeHandler, authRepo, orgRepo, enforcer)
 		orderSvc.SetAttendeeMinter(attendeeSvc)
+
+		// Check-in domain: door scans over the attendee seam (row flip
+		// stays in attendees; logging + QR verify here).
+		checkinRepo := checkinrepository.NewCheckinRepository(config.DB)
+		checkinSvc := checkinservice.NewCheckinService(config.DB, checkinRepo, attendeeSvc, eventSvc)
+		checkinSvc.SetQRSecret(config.QRSigningSecret())
+		checkinHandler := checkinhandler.NewHandler(checkinSvc)
+		checkin.RegisterRoutes(api, checkinHandler, authRepo, orgRepo, enforcer)
 
 		// Payments domain: Stripe Checkout + webhooks. Degrades to 503s
 		// when unconfigured; boot never fails for missing keys.

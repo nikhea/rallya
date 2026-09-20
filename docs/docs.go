@@ -2144,6 +2144,225 @@ const docTemplate = `{
                 }
             }
         },
+        "/orgs/{id}/events/{eventId}/checkin": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "QR string or roster attendee ID. Refusals return 200 with their outcome.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "checkin"
+                ],
+                "summary": "Scan one code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Code or attendee ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ScanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ScanResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/checkin/batch": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "QR-only, per-item outcomes, no fail-fast. Max 50 codes.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "checkin"
+                ],
+                "summary": "Scan a batch of codes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "QR codes",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.BatchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.BatchResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/events/{eventId}/checkin/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Registered / checked-in / cancelled tallies for one event.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "checkin"
+                ],
+                "summary": "Door-dashboard counts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event UUID or slug",
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.StatsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/checkindto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
         "/orgs/{id}/events/{eventId}/cover": {
             "post": {
                 "security": [
@@ -3675,6 +3894,95 @@ const docTemplate = `{
                 "error": {
                     "type": "string",
                     "example": "attendee not found"
+                }
+            }
+        },
+        "checkindto.BatchRequest": {
+            "type": "object",
+            "properties": {
+                "codes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "\u003cuuid\u003e.\u003ctoken\u003e.\u003chmac\u003e"
+                    ]
+                }
+            }
+        },
+        "checkindto.BatchResult": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/checkindto.ScanResult"
+                    }
+                }
+            }
+        },
+        "checkindto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "event not found"
+                }
+            }
+        },
+        "checkindto.ScanRequest": {
+            "type": "object",
+            "properties": {
+                "attendeeId": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "\u003cuuid\u003e.\u003ctoken\u003e.\u003chmac\u003e"
+                }
+            }
+        },
+        "checkindto.ScanResult": {
+            "type": "object",
+            "properties": {
+                "attendeeId": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "checkedInAt": {
+                    "type": "string",
+                    "example": "2026-09-20T10:00:00Z"
+                },
+                "method": {
+                    "type": "string",
+                    "example": "qr"
+                },
+                "outcome": {
+                    "type": "string",
+                    "example": "CHECKED_IN"
+                }
+            }
+        },
+        "checkindto.StatsResponse": {
+            "type": "object",
+            "properties": {
+                "cancelled": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "checkedIn": {
+                    "type": "integer",
+                    "example": 45
+                },
+                "registered": {
+                    "type": "integer",
+                    "example": 120
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 168
                 }
             }
         },

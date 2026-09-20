@@ -1,8 +1,10 @@
 package service
 
 import (
+	"crypto/subtle"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -12,6 +14,7 @@ import (
 	"github.com/nikhea/rallya/internal/attendee/repository"
 	attendeeutils "github.com/nikhea/rallya/internal/attendee/utils"
 	auth "github.com/nikhea/rallya/internal/auth"
+	checkinservice "github.com/nikhea/rallya/internal/checkin/service"
 	ordersevice "github.com/nikhea/rallya/internal/order/service"
 )
 
@@ -253,4 +256,63 @@ func (s *AttendeeService) CancelMine(userID, attendeeID uuid.UUID) (*attendeeDTO
 		return nil, err
 	}
 	return toAttendee(a, nil), nil
+}
+
+// ApplyCheckin atomically scans one QR: loads the row FOR UPDATE inside the
+// caller's tx (concurrent scans serialize; only the first flips), checks
+// event scope + token, and flips REGISTERED -> CHECKED_IN. Business
+// refusals ride the verdict — only unknown rows return an error.
+// Implements the check-in domain's CheckinApplier contract.
+func (s *AttendeeService) ApplyCheckin(tx *gorm.DB, attendeeID uuid.UUID, rawToken string, eventID uuid.UUID) (*checkinservice.ScanVerdict, error) {
+	a, err := s.repo.GetForUpdate(tx, attendeeID)
+	if err != nil {
+		return nil, err
+	}
+	v := &checkinservice.ScanVerdict{EventOK: a.EventID == eventID, TokenOK: s.tokenOK(a, rawToken), Status: a.Status}
+	if !v.EventOK || !v.TokenOK || a.Status != model.AttendeeStatusRegistered {
+		return v, nil
+	}
+	return s.flip(tx, a, v)
+}
+
+// ApplyCheckinManual is the QR-less fallback (staff judgment against the
+// roster): same atomic flip without the token gate. Implements CheckinApplier.
+func (s *AttendeeService) ApplyCheckinManual(tx *gorm.DB, attendeeID, eventID uuid.UUID) (*checkinservice.ScanVerdict, error) {
+	a, err := s.repo.GetForUpdate(tx, attendeeID)
+	if err != nil {
+		return nil, err
+	}
+	v := &checkinservice.ScanVerdict{EventOK: a.EventID == eventID, TokenOK: true, Status: a.Status}
+	if !v.EventOK || a.Status != model.AttendeeStatusRegistered {
+		return v, nil
+	}
+	return s.flip(tx, a, v)
+}
+
+// CountByStatus tallies an event's roster per status (door stats).
+func (s *AttendeeService) CountByStatus(eventID uuid.UUID) (map[string]int64, error) {
+	return s.repo.CountByStatus(eventID)
+}
+
+// tokenOK constant-time compares a scanned token against the stored hash.
+func (s *AttendeeService) tokenOK(a *model.Attendee, rawToken string) bool {
+	if rawToken == "" {
+		return false
+	}
+	got := attendeeutils.HashToken(rawToken)
+	return subtle.ConstantTimeCompare([]byte(got), []byte(a.TokenHash)) == 1
+}
+
+// flip lands REGISTERED -> CHECKED_IN with the first-scan timestamp.
+func (s *AttendeeService) flip(tx *gorm.DB, a *model.Attendee, v *checkinservice.ScanVerdict) (*checkinservice.ScanVerdict, error) {
+	now := time.Now().UTC()
+	a.Status = model.AttendeeStatusCheckedIn
+	a.CheckedInAt = &now
+	if err := s.repo.UpdateAttendee(tx, a); err != nil {
+		return nil, err
+	}
+	v.Flipped = true
+	v.Status = model.AttendeeStatusCheckedIn
+	v.CheckedInAt = &now
+	return v, nil
 }
