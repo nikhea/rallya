@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/nikhea/rallya/internal/attendee/model"
 	attendeeutils "github.com/nikhea/rallya/internal/attendee/utils"
+	auditmodel "github.com/nikhea/rallya/internal/audit/model"
+	auditsvc "github.com/nikhea/rallya/internal/audit/service"
 	checkinmodel "github.com/nikhea/rallya/internal/checkin/model"
 	"github.com/nikhea/rallya/internal/checkin/repository"
 )
@@ -57,6 +60,7 @@ type CheckinService struct {
 	attends CheckinApplier
 	events  EventResolver
 	secret  []byte
+	auditor auditsvc.Emitter
 }
 
 // NewCheckinService builds the service. Secret arrives via SetQRSecret
@@ -67,6 +71,24 @@ func NewCheckinService(db *gorm.DB, repo *repository.CheckinRepository, attends 
 
 // SetQRSecret injects the HMAC secret (same value as attendees minting).
 func (s *CheckinService) SetQRSecret(secret []byte) { s.secret = secret }
+
+// SetAuditEmitter wires audit-trail emission (nil-safe when absent).
+func (s *CheckinService) SetAuditEmitter(a auditsvc.Emitter) { s.auditor = a }
+
+// audit records a slim pointer to a scan log row (nil-safe when unwired).
+// The outcome rides the action (checkin.checked_in, ...); the payload stays
+// in checkin_logs — never duplicated here.
+func (s *CheckinService) audit(tx *gorm.DB, orgID uuid.UUID, staffID uuid.UUID, log *checkinmodel.CheckinLog) error {
+	if s.auditor == nil {
+		return nil
+	}
+	return s.auditor.EmitTx(tx, auditsvc.Entry{
+		OrgID: &orgID, ActorID: &staffID,
+		Action:     "checkin." + strings.ToLower(string(log.Outcome)),
+		ObjectType: auditmodel.ObjectCheckinLog, ObjectID: &log.ID,
+		After: map[string]any{"outcome": string(log.Outcome), "method": string(log.Method)},
+	})
+}
 
 // ScanResult is one scan outcome (handler maps to dto; service stays
 // wire-shape free).
@@ -106,10 +128,16 @@ func (s *CheckinService) scanQR(orgID uuid.UUID, eventRef, code string, staffID 
 	vp, err := attendeeutils.VerifyPayload(code, s.secret)
 	if err != nil {
 		// Unscannable: nothing to attribute — log with NULL attendee.
-		_ = s.repo.InsertTx(nil, &checkinmodel.CheckinLog{
+		lg := &checkinmodel.CheckinLog{
 			EventID: eventID, ScannedBy: staffID,
 			Outcome: checkinmodel.OutcomeInvalidCode, Method: checkinmodel.MethodQR,
-		})
+		}
+		if err := s.repo.InsertTx(nil, lg); err != nil {
+			return nil, err
+		}
+		if err := s.audit(nil, orgID, staffID, lg); err != nil {
+			return nil, err
+		}
 		return &ScanResult{Outcome: checkinmodel.OutcomeInvalidCode, Method: checkinmodel.MethodQR}, nil
 	}
 	res := &ScanResult{Method: checkinmodel.MethodQR, AttendeeID: &vp.AttendeeID}
@@ -118,19 +146,13 @@ func (s *CheckinService) scanQR(orgID uuid.UUID, eventRef, code string, staffID 
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				res.Outcome = checkinmodel.OutcomeInvalidCode
-				return s.repo.InsertTx(tx, &checkinmodel.CheckinLog{
-					EventID: eventID, AttendeeID: &vp.AttendeeID, ScannedBy: staffID,
-					Outcome: res.Outcome, Method: checkinmodel.MethodQR,
-				})
+				return s.logAndAudit(tx, orgID, staffID, eventID, &vp.AttendeeID, res.Outcome, checkinmodel.MethodQR)
 			}
 			return err
 		}
 		res.Outcome = verdictOutcome(verdict)
 		res.CheckedInAt = verdict.CheckedInAt
-		return s.repo.InsertTx(tx, &checkinmodel.CheckinLog{
-			EventID: eventID, AttendeeID: &vp.AttendeeID, ScannedBy: staffID,
-			Outcome: res.Outcome, Method: checkinmodel.MethodQR,
-		})
+		return s.logAndAudit(tx, orgID, staffID, eventID, &vp.AttendeeID, res.Outcome, checkinmodel.MethodQR)
 	})
 	if err != nil {
 		return nil, err
@@ -159,10 +181,7 @@ func (s *CheckinService) scanManual(orgID uuid.UUID, eventRef, attendeeRef strin
 		}
 		res.Outcome = verdictOutcome(verdict)
 		res.CheckedInAt = verdict.CheckedInAt
-		return s.repo.InsertTx(tx, &checkinmodel.CheckinLog{
-			EventID: eventID, AttendeeID: &attendeeID, ScannedBy: staffID,
-			Outcome: res.Outcome, Method: checkinmodel.MethodManual,
-		})
+		return s.logAndAudit(tx, orgID, staffID, eventID, &attendeeID, res.Outcome, checkinmodel.MethodManual)
 	})
 	if err != nil {
 		return nil, err
@@ -213,10 +232,7 @@ func (s *CheckinService) Revert(orgID uuid.UUID, eventRef, attendeeRef string, s
 		if !verdict.Reverted {
 			return ErrNotCheckedIn
 		}
-		return s.repo.InsertTx(tx, &checkinmodel.CheckinLog{
-			EventID: eventID, AttendeeID: &attendeeID, ScannedBy: staffID,
-			Outcome: res.Outcome, Method: checkinmodel.MethodManual,
-		})
+		return s.logAndAudit(tx, orgID, staffID, eventID, &attendeeID, res.Outcome, checkinmodel.MethodManual)
 	})
 	if err != nil {
 		return nil, err
@@ -237,6 +253,18 @@ func (s *CheckinService) Stats(orgID uuid.UUID, eventRef string) (registered, ch
 	return counts[string(model.AttendeeStatusRegistered)],
 		counts[string(model.AttendeeStatusCheckedIn)],
 		counts[string(model.AttendeeStatusCancelled)], nil
+}
+
+// logAndAudit inserts the scan log row and its slim audit pointer in one tx.
+func (s *CheckinService) logAndAudit(tx *gorm.DB, orgID, staffID, eventID uuid.UUID, attendeeID *uuid.UUID, outcome checkinmodel.Outcome, method checkinmodel.Method) error {
+	lg := &checkinmodel.CheckinLog{
+		EventID: eventID, AttendeeID: attendeeID, ScannedBy: staffID,
+		Outcome: outcome, Method: method,
+	}
+	if err := s.repo.InsertTx(tx, lg); err != nil {
+		return err
+	}
+	return s.audit(tx, orgID, staffID, lg)
 }
 
 // verdictOutcome maps a row verdict to the wire outcome. Token mismatch

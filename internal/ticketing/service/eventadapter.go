@@ -19,6 +19,7 @@ type EventInfo struct {
 type EventResolver interface {
 	GetEvent(callerID *uuid.UUID, orgRef, eventRef string) (EventInfo, error)
 	GetPublicEvent(eventID uuid.UUID) (EventInfo, error)
+	OrgOf(eventID uuid.UUID) (uuid.UUID, error)
 }
 
 // Published reports a published event.
@@ -54,4 +55,9 @@ func (a *EventAdapter) GetPublicEvent(eventID uuid.UUID) (EventInfo, error) {
 	return EventInfo{
 		ID: eventID, Status: e.Status, Capacity: e.Capacity,
 	}, nil
+}
+
+// OrgOf resolves an event's org (audit scope for mutations).
+func (a *EventAdapter) OrgOf(eventID uuid.UUID) (uuid.UUID, error) {
+	return a.Svc.OrgOf(eventID)
 }

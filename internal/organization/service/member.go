@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	auditmodel "github.com/nikhea/rallya/internal/audit/model"
+	auditsvc "github.com/nikhea/rallya/internal/audit/service"
 	"github.com/nikhea/rallya/internal/auth/model"
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
@@ -62,10 +64,20 @@ func (s *OrgService) AddMember(grantorID uuid.UUID, ref, email string, role orgm
 		return nil, err
 	}
 	m := &orgmodel.Membership{OrganizationID: o.ID, UserID: target.ID, Role: role}
-	if err := s.repo.CreateMembership(nil, m); err != nil {
-		if orgutils.IsUniqueViolation(err) {
-			return nil, ErrAlreadyMember
+	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.CreateMembership(tx, m); err != nil {
+			if orgutils.IsUniqueViolation(err) {
+				return ErrAlreadyMember
+			}
+			return err
 		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &o.ID, ActorID: &grantorID,
+			Action: "member.added", ObjectType: auditmodel.ObjectMember, ObjectID: &target.ID,
+			After: map[string]any{"email": target.Email, "role": string(role)},
+		})
+	})
+	if err != nil {
 		return nil, err
 	}
 	s.sync(target.ID, o.ID, &role)
@@ -95,7 +107,17 @@ func (s *OrgService) UpdateMemberRole(grantorID uuid.UUID, ref string, targetID 
 		}
 	}
 	now := time.Now()
-	if err := s.repo.UpdateMemberRole(nil, o.ID, targetID, role, now); err != nil {
+	before := string(m.Role)
+	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.UpdateMemberRole(tx, o.ID, targetID, role, now); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &o.ID, ActorID: &grantorID,
+			Action: "member.role_changed", ObjectType: auditmodel.ObjectMember, ObjectID: &targetID,
+			Before: map[string]any{"role": before}, After: map[string]any{"role": string(role)},
+		})
+	}); err != nil {
 		return nil, err
 	}
 	s.sync(targetID, o.ID, &role)
@@ -135,7 +157,16 @@ func (s *OrgService) RemoveMember(grantorID uuid.UUID, ref string, targetID uuid
 			return err
 		}
 	}
-	if err := s.repo.DeleteMembership(nil, o.ID, targetID); err != nil {
+	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.DeleteMembership(tx, o.ID, targetID); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &o.ID, ActorID: &grantorID,
+			Action: "member.removed", ObjectType: auditmodel.ObjectMember, ObjectID: &targetID,
+			Before: map[string]any{"role": string(m.Role)},
+		})
+	}); err != nil {
 		return err
 	}
 	s.sync(targetID, o.ID, nil)

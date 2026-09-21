@@ -74,6 +74,58 @@ definitions:
         example: attendee not found
         type: string
     type: object
+  auditdto.AuditEvent:
+    properties:
+      action:
+        example: order.confirmed
+        type: string
+      actorId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      after:
+        example: '{"status":"CONFIRMED"}'
+        type: string
+      before:
+        example: '{"status":"PENDING_PAYMENT"}'
+        type: string
+      createdAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      objectId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      objectType:
+        example: order
+        type: string
+      orgId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  auditdto.AuditPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/auditdto.AuditEvent'
+        type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
+      total:
+        example: 42
+        type: integer
+    type: object
+  auditdto.ErrorAlias:
+    properties:
+      error:
+        example: organization not found
+        type: string
+    type: object
   checkindto.BatchRequest:
     properties:
       codes:
@@ -906,6 +958,68 @@ info:
   title: Rallya API
   version: "1.0"
 paths:
+  /admin/audit:
+    get:
+      description: Cross-tenant trail for disputes and abuse. Superadmin only.
+      parameters:
+      - description: Org UUID filter
+        in: query
+        name: org
+        type: string
+      - description: Action filter
+        in: query
+        name: action
+        type: string
+      - description: Actor UUID filter
+        in: query
+        name: actor
+        type: string
+      - description: Object type filter
+        in: query
+        name: objectType
+        type: string
+      - description: Object UUID filter
+        in: query
+        name: objectId
+        type: string
+      - description: RFC3339 lower bound
+        in: query
+        name: since
+        type: string
+      - description: RFC3339 upper bound
+        in: query
+        name: until
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auditdto.AuditPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/auditdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/auditdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List platform audit events
+      tags:
+      - audit
   /attendees/{id}:
     get:
       description: QR payloads arrive by confirmation email (hash-only storage cannot
@@ -1799,6 +1913,75 @@ paths:
       summary: Update organization
       tags:
       - orgs
+  /orgs/{id}/audit:
+    get:
+      description: Tenant-scoped paper trail, newest first. Filters narrow disputes.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Action filter
+        example: order.confirmed
+        in: query
+        name: action
+        type: string
+      - description: Actor UUID filter
+        in: query
+        name: actor
+        type: string
+      - description: Object type filter
+        example: order
+        in: query
+        name: objectType
+        type: string
+      - description: Object UUID filter
+        in: query
+        name: objectId
+        type: string
+      - description: RFC3339 lower bound
+        in: query
+        name: since
+        type: string
+      - description: RFC3339 upper bound
+        in: query
+        name: until
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auditdto.AuditPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/auditdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/auditdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/auditdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List org audit events
+      tags:
+      - audit
   /orgs/{id}/events:
     get:
       description: Paginated, filterable; includes drafts for members.

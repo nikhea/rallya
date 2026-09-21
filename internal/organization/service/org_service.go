@@ -13,6 +13,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/nikhea/rallya/cmd/config"
+	auditmodel "github.com/nikhea/rallya/internal/audit/model"
+	auditsvc "github.com/nikhea/rallya/internal/audit/service"
 	auth "github.com/nikhea/rallya/internal/auth"
 	authdto "github.com/nikhea/rallya/internal/auth/dto"
 	"github.com/nikhea/rallya/internal/auth/model"
@@ -39,6 +41,7 @@ type OrgService struct {
 	syncer   GroupSyncer
 	seeder   PolicySeeder
 	cleaner  AssetCleaner
+	auditor  auditsvc.Emitter
 }
 
 // NewOrgService builds the service. users is required; enqueuer/syncer/
@@ -58,6 +61,19 @@ func (s *OrgService) SetPolicySeeder(p PolicySeeder) { s.seeder = p }
 
 // SetAssetCleaner wires event asset cleanup on org delete.
 func (s *OrgService) SetAssetCleaner(a AssetCleaner) { s.cleaner = a }
+
+// SetAuditEmitter wires audit-trail emission (nil-safe when absent).
+func (s *OrgService) SetAuditEmitter(a auditsvc.Emitter) { s.auditor = a }
+
+// emit records one audit entry (nil-safe when unwired). Call inside the
+// action's tx so entry and mutation commit atomically; emit failure fails
+// the action (loud beats gappy).
+func (s *OrgService) emit(tx *gorm.DB, e auditsvc.Entry) error {
+	if s.auditor == nil {
+		return nil
+	}
+	return s.auditor.EmitTx(tx, e)
+}
 
 // ---------- organizations ----------
 
@@ -107,7 +123,14 @@ func (s *OrgService) CreateOrg(creatorID uuid.UUID, name, slug, logo string) (*o
 			}
 			m.OrganizationID = o.ID
 			m.UserID = creatorID
-			return s.repo.CreateMembership(tx, m)
+			if err := s.repo.CreateMembership(tx, m); err != nil {
+				return err
+			}
+			return s.emit(tx, auditsvc.Entry{
+				OrgID: &o.ID, ActorID: &creatorID,
+				Action: "org.created", ObjectType: auditmodel.ObjectOrg, ObjectID: &o.ID,
+				After: map[string]any{"name": name, "slug": slug},
+			})
 		})
 		if err == nil {
 			s.seed(o.ID)
@@ -162,6 +185,7 @@ func (s *OrgService) UpdateOrg(userID uuid.UUID, ref, name, slug, logo string) (
 	if err != nil {
 		return nil, err
 	}
+	before := map[string]any{"name": o.Name, "slug": o.Slug}
 	if name != "" {
 		o.Name = strings.TrimSpace(name)
 	}
@@ -176,10 +200,21 @@ func (s *OrgService) UpdateOrg(userID uuid.UUID, ref, name, slug, logo string) (
 	if strings.TrimSpace(logo) != "" {
 		o.LogoURL = &logo
 	}
-	if err := s.repo.UpdateOrg(nil, o); err != nil {
-		if orgutils.IsUniqueViolation(err) {
-			return nil, ErrSlugTaken
+	after := map[string]any{"name": o.Name, "slug": o.Slug}
+	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.UpdateOrg(tx, o); err != nil {
+			if orgutils.IsUniqueViolation(err) {
+				return ErrSlugTaken
+			}
+			return err
 		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &o.ID, ActorID: &userID,
+			Action: "org.updated", ObjectType: auditmodel.ObjectOrg, ObjectID: &o.ID,
+			Before: before, After: after,
+		})
+	})
+	if err != nil {
 		return nil, err
 	}
 	return toOrg(o, m.Role), nil
@@ -198,7 +233,17 @@ func (s *OrgService) DeleteOrg(userID uuid.UUID, ref string) error {
 	// Assets first (orphan rows self-heal; orphan files cost money),
 	// then rows cascade, then derived IAM state.
 	s.cleanAssets(o.ID)
-	if err := s.repo.DeleteOrg(nil, o.ID); err != nil {
+	orgID, orgName := o.ID, o.Name
+	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: &userID,
+			Action: "org.deleted", ObjectType: auditmodel.ObjectOrg, ObjectID: &orgID,
+			Before: map[string]any{"name": orgName},
+		}); err != nil {
+			return err
+		}
+		return s.repo.DeleteOrg(tx, o.ID)
+	}); err != nil {
 		return err
 	}
 	for _, m := range members {

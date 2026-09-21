@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	auditmodel "github.com/nikhea/rallya/internal/audit/model"
+	auditsvc "github.com/nikhea/rallya/internal/audit/service"
 	ticketdto "github.com/nikhea/rallya/internal/ticketing/dto"
 	"github.com/nikhea/rallya/internal/ticketing/model"
 	"github.com/nikhea/rallya/internal/ticketing/repository"
@@ -16,13 +18,32 @@ import (
 
 // TicketService orchestrates ticket-type flows.
 type TicketService struct {
-	repo   *repository.TicketRepository
-	events EventResolver
+	repo    *repository.TicketRepository
+	events  EventResolver
+	auditor auditsvc.Emitter
 }
 
-// NewTicketService builds the service. events is required (adapter).
+// NewTicketService builds the service. events is required (adapter);
+// audit emission wires via setter and is nil-safe when absent.
 func NewTicketService(repo *repository.TicketRepository, events EventResolver) *TicketService {
 	return &TicketService{repo: repo, events: events}
+}
+
+// SetAuditEmitter wires audit-trail emission (nil-safe when absent).
+func (s *TicketService) SetAuditEmitter(a auditsvc.Emitter) { s.auditor = a }
+
+// emit records one audit entry (nil-safe when unwired). Call inside the
+// action's tx so entry and mutation commit atomically.
+func (s *TicketService) emit(tx *gorm.DB, e auditsvc.Entry) error {
+	if s.auditor == nil {
+		return nil
+	}
+	return s.auditor.EmitTx(tx, e)
+}
+
+// orgOf resolves the mutation's org for audit scope.
+func (s *TicketService) orgOf(eventID uuid.UUID) (uuid.UUID, error) {
+	return s.events.OrgOf(eventID)
 }
 
 // CreateInput carries validated create fields.
@@ -74,7 +95,21 @@ func (s *TicketService) CreateType(callerID *uuid.UUID, orgRef, eventRef string,
 		SaleStartsAt: in.SaleStartsAt, SaleEndsAt: in.SaleEndsAt,
 		Status: model.TicketStatusDraft,
 	}
-	if err := s.repo.CreateType(nil, t); err != nil {
+	orgID, err := s.orgOf(ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.CreateType(tx, t); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: callerID,
+			Action: "ticket.created", ObjectType: auditmodel.ObjectTicket, ObjectID: &t.ID,
+			After: map[string]any{"name": name, "priceCents": in.PriceCents, "quantityTotal": in.QuantityTotal},
+		})
+	})
+	if err != nil {
 		return nil, err
 	}
 	return toTicketType(t, ev.Published(), time.Now()), nil
@@ -216,7 +251,21 @@ func (s *TicketService) DeleteType(callerID *uuid.UUID, orgRef, eventRef, ref st
 	if t.QuantitySold > 0 {
 		return ErrHasSales
 	}
-	return s.repo.DeleteType(nil, t.ID)
+	orgID, err := s.orgOf(ev.ID)
+	if err != nil {
+		return err
+	}
+	name := t.Name
+	return s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.DeleteType(tx, t.ID); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: callerID,
+			Action: "ticket.deleted", ObjectType: auditmodel.ObjectTicket, ObjectID: &t.ID,
+			Before: map[string]any{"name": name},
+		})
+	})
 }
 
 // Activate transitions DRAFT/PAUSED -> ACTIVE.
@@ -249,8 +298,28 @@ func (s *TicketService) setStatus(callerID *uuid.UUID, orgRef, eventRef, ref str
 	if !ok {
 		return nil, ErrInvalidStatus
 	}
+	before := string(t.Status)
 	t.Status = to
-	if err := s.repo.UpdateType(nil, t); err != nil {
+	orgID, err := s.orgOf(ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	action := "ticket.activated"
+	if to == model.TicketStatusPaused {
+		action = "ticket.paused"
+	}
+	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.UpdateType(tx, t); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: callerID,
+			Action: action, ObjectType: auditmodel.ObjectTicket, ObjectID: &t.ID,
+			Before: map[string]any{"status": before},
+			After:  map[string]any{"status": string(to)},
+		})
+	})
+	if err != nil {
 		return nil, err
 	}
 	return toTicketType(t, ev.Published(), time.Now()), nil

@@ -58,6 +58,10 @@ func (f *fakeEvents) GetPublicEvent(eventID uuid.UUID) (service.EventInfo, error
 	return *e, nil
 }
 
+func (f *fakeEvents) OrgOf(_ uuid.UUID) (uuid.UUID, error) {
+	return uuid.MustParse("00000000-0000-0000-0000-000000000001"), nil
+}
+
 var errNoEvent = errors.New("no event")
 
 type ticketFixture struct {

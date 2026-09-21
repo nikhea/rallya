@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm"
 
 	attendeeutils "github.com/nikhea/rallya/internal/attendee/utils"
+	auditmodel "github.com/nikhea/rallya/internal/audit/model"
+	auditsvc "github.com/nikhea/rallya/internal/audit/service"
 	auth "github.com/nikhea/rallya/internal/auth"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 	orderdto "github.com/nikhea/rallya/internal/order/dto"
@@ -66,6 +68,7 @@ type OrderService struct {
 	minter   AttendeeMinter
 	enqueuer jobs.Enqueuer
 	qrSecret []byte
+	auditor  auditsvc.Emitter
 }
 
 // NewOrderService builds the service. tickets/events/orgs/users required;
@@ -83,6 +86,24 @@ func (s *OrderService) SetEnqueuer(e jobs.Enqueuer) { s.enqueuer = e }
 // SetQRSecret wires the QR HMAC secret (resolved once at boot; fail-closed
 // there, never per-request — os.Exit in a handler would kill the process).
 func (s *OrderService) SetQRSecret(secret []byte) { s.qrSecret = secret }
+
+// SetAuditEmitter wires audit-trail emission (nil-safe when absent).
+func (s *OrderService) SetAuditEmitter(a auditsvc.Emitter) { s.auditor = a }
+
+// emit records one audit entry (nil-safe when unwired). Call inside the
+// action's tx so entry and mutation commit atomically.
+func (s *OrderService) emit(tx *gorm.DB, e auditsvc.Entry) error {
+	if s.auditor == nil {
+		return nil
+	}
+	return s.auditor.EmitTx(tx, e)
+}
+
+// orgOf resolves the order's org for audit scope (best-effort: audit must
+// never fail the order when the event lookup hiccups — callers decide).
+func (s *OrderService) orgOf(eventID uuid.UUID) (uuid.UUID, error) {
+	return s.events.OrgOf(eventID)
+}
 
 // CreateInput carries the claim request.
 type CreateInput struct {
@@ -142,6 +163,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, eventID uuid.UUI
 		o.Status = model.OrderStatusPendingPayment
 		o.ExpiresAt = &[]time.Time{now.Add(HoldTTL)}[0]
 	}
+	orgID, err := s.orgOf(eventID)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
 		// Hold joins the order tx: a failed insert rolls the hold back —
 		// no phantom inventory.
@@ -149,6 +174,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, eventID uuid.UUI
 			return morphReserveErr(err)
 		}
 		if err := s.repo.CreateOrder(tx, o); err != nil {
+			return err
+		}
+		if err := s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: &userID,
+			Action: "order.created", ObjectType: auditmodel.ObjectOrder, ObjectID: &o.ID,
+			After: map[string]any{"status": string(o.Status), "quantity": o.Quantity, "priceCents": o.PriceCents},
+		}); err != nil {
 			return err
 		}
 		// Free orders confirm immediately: mint door records + queue the
@@ -161,6 +193,11 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, eventID uuid.UUI
 			if err := s.enqueueConfirmation(tx, o, userID, minted); err != nil {
 				return err
 			}
+			return s.emit(tx, auditsvc.Entry{
+				OrgID: &orgID, ActorID: &userID,
+				Action: "order.confirmed", ObjectType: auditmodel.ObjectOrder, ObjectID: &o.ID,
+				After: map[string]any{"status": string(o.Status)},
+			})
 		}
 		return nil
 	}); err != nil {
@@ -295,13 +332,28 @@ func (s *OrderService) MarkPaid(orderID uuid.UUID, sessionID, paymentIntentID st
 		return nil, ErrInvalidStatus
 	}
 	now := time.Now()
+	before := string(o.Status)
 	o.Status = model.OrderStatusConfirmed
 	o.StripeSessionID = &sessionID
 	if paymentIntentID != "" {
 		o.StripePaymentIntentID = &paymentIntentID
 	}
 	o.PaidAt = &now
-	if err := s.repo.UpdateOrder(nil, o); err != nil {
+	orgID, err := s.orgOf(o.EventID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.UpdateOrder(tx, o); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID:  &orgID, // webhook: system actor (nil)
+			Action: "order.confirmed", ObjectType: auditmodel.ObjectOrder, ObjectID: &o.ID,
+			Before: map[string]any{"status": before},
+			After:  map[string]any{"status": string(o.Status)},
+		})
+	}); err != nil {
 		return nil, err
 	}
 	return toOrder(o), nil
@@ -353,12 +405,25 @@ func (s *OrderService) CancelOrder(ctx context.Context, callerID, orderID uuid.U
 		return nil, ErrInvalidStatus
 	}
 	// Any live order (holds and confirmed-free alike) releases inventory.
+	before := string(o.Status)
+	orgID, err := s.orgOf(o.EventID)
+	if err != nil {
+		return nil, err
+	}
 	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.tickets.ReleaseTx(tx, o.TicketTypeID, o.Quantity); err != nil {
 			return morphReleaseErr(err)
 		}
 		o.Status = model.OrderStatusCancelled
-		return s.repo.UpdateOrder(tx, o)
+		if err := s.repo.UpdateOrder(tx, o); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: &callerID,
+			Action: "order.cancelled", ObjectType: auditmodel.ObjectOrder, ObjectID: &o.ID,
+			Before: map[string]any{"status": before},
+			After:  map[string]any{"status": string(o.Status)},
+		})
 	})
 	if err != nil {
 		slog.Warn("order cancel failed", "order", o.ID, "error", err)
@@ -392,12 +457,25 @@ func (s *OrderService) SweepExpired(ctx context.Context, batch int) (int, error)
 
 func (s *OrderService) expireOne(ctx context.Context, o model.Order) error {
 	_ = ctx
+	before := string(o.Status)
+	orgID, err := s.orgOf(o.EventID)
+	if err != nil {
+		return err
+	}
 	return s.repo.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.tickets.ReleaseTx(tx, o.TicketTypeID, o.Quantity); err != nil {
 			return err
 		}
 		o.Status = model.OrderStatusExpired
-		return s.repo.UpdateOrder(tx, &o)
+		if err := s.repo.UpdateOrder(tx, &o); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID:  &orgID, // sweeper: system actor (nil)
+			Action: "order.expired", ObjectType: auditmodel.ObjectOrder, ObjectID: &o.ID,
+			Before: map[string]any{"status": before},
+			After:  map[string]any{"status": string(o.Status)},
+		})
 	})
 }
 
