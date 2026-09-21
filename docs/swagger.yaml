@@ -1,5 +1,165 @@
 basePath: /api/v1
 definitions:
+  admindto.ErrorAlias:
+    properties:
+      error:
+        example: organization not found
+        type: string
+    type: object
+  admindto.MemberRow:
+    properties:
+      email:
+        example: jane@test.com
+        type: string
+      emailVerified:
+        example: true
+        type: boolean
+      joinedAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      name:
+        example: Jane
+        type: string
+      role:
+        example: ADMIN
+        type: string
+      userId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  admindto.MembershipRow:
+    properties:
+      joinedAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      orgId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      orgName:
+        example: Acme
+        type: string
+      orgSlug:
+        example: acme
+        type: string
+      role:
+        example: ADMIN
+        type: string
+    type: object
+  admindto.OrgDetail:
+    properties:
+      createdAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/admindto.MemberRow'
+        type: array
+      name:
+        example: Acme
+        type: string
+      slug:
+        example: acme
+        type: string
+    type: object
+  admindto.OrgSummary:
+    properties:
+      createdAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      members:
+        example: 12
+        type: integer
+      name:
+        example: Acme
+        type: string
+      slug:
+        example: acme
+        type: string
+    type: object
+  admindto.OrgsPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/admindto.OrgSummary'
+        type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
+      total:
+        example: 3
+        type: integer
+    type: object
+  admindto.UserDetail:
+    properties:
+      createdAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      email:
+        example: jane@test.com
+        type: string
+      emailVerified:
+        example: true
+        type: boolean
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      memberships:
+        items:
+          $ref: '#/definitions/admindto.MembershipRow'
+        type: array
+      name:
+        example: Jane
+        type: string
+      superAdmin:
+        example: false
+        type: boolean
+    type: object
+  admindto.UserSummary:
+    properties:
+      createdAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      email:
+        example: jane@test.com
+        type: string
+      emailVerified:
+        example: true
+        type: boolean
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      name:
+        example: Jane
+        type: string
+      superAdmin:
+        example: false
+        type: boolean
+    type: object
+  admindto.UsersPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/admindto.UserSummary'
+        type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
+      total:
+        example: 7
+        type: integer
+    type: object
   attendeedto.AddAttendee:
     properties:
       email:
@@ -1020,6 +1180,203 @@ paths:
       summary: List platform audit events
       tags:
       - audit
+  /admin/orgs:
+    get:
+      description: Newest first with member counts. Audited per call.
+      parameters:
+      - description: Name/slug search
+        in: query
+        name: q
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admindto.OrgsPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Platform org inventory
+      tags:
+      - admin
+  /admin/orgs/{id}:
+    get:
+      description: Org row with full roster (identity + roles).
+      parameters:
+      - description: Org UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admindto.OrgDetail'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Tenant dispute-triage view
+      tags:
+      - admin
+  /admin/users:
+    get:
+      description: Email-fragment search with superadmin flags.
+      parameters:
+      - description: Email fragment
+        in: query
+        name: q
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admindto.UsersPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Platform account lookup
+      tags:
+      - admin
+  /admin/users/{id}:
+    get:
+      description: Profile plus every tenant membership.
+      parameters:
+      - description: User UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admindto.UserDetail'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Account access-review view
+      tags:
+      - admin
+  /admin/users/{id}/orders:
+    get:
+      description: orderdto shapes (already Stripe-free). Fraud/refund investigation.
+      parameters:
+      - description: User UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page (1-based)
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - description: Page size, max 100
+        example: 20
+        in: query
+        name: perPage
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orderdto.OrdersPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Cross-tenant order history
+      tags:
+      - admin
   /attendees/{id}:
     get:
       description: QR payloads arrive by confirmation email (hash-only storage cannot

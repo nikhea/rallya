@@ -17,6 +17,9 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/nikhea/rallya/cmd/config"
+	admin "github.com/nikhea/rallya/internal/admin"
+	adminhandler "github.com/nikhea/rallya/internal/admin/handler"
+	adminservice "github.com/nikhea/rallya/internal/admin/service"
 	attendee "github.com/nikhea/rallya/internal/attendee"
 	attendeehandler "github.com/nikhea/rallya/internal/attendee/handler"
 	attendeerepository "github.com/nikhea/rallya/internal/attendee/repository"
@@ -234,6 +237,12 @@ func main() {
 
 		// Audit reads register last (need orgRepo + enforcer).
 		audit.RegisterRoutes(api, auditHandler, authRepo, orgRepo, enforcer)
+
+		// Admin reads: platform surface over tenant repos (superadmin only;
+		// every read audited). Repair triggers follow as their own slice.
+		adminSvc := adminservice.NewAdminService(orgRepo, authRepo, orderRepo, enforcer)
+		adminSvc.SetAuditEmitter(auditSvc)
+		admin.RegisterRoutes(api, adminhandler.NewHandler(adminSvc), authRepo, enforcer)
 
 		// Cover images + uploads served read-only (local disk for MVP).
 		if err := os.MkdirAll("./uploads", 0o755); err != nil {
