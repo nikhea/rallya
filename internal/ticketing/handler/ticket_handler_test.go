@@ -102,7 +102,7 @@ func newTicketFixture(t *testing.T) *ticketFixture {
 		t.Fatalf("create event: %v", err)
 	}
 	// Publish the event so public ticket reads work.
-	if _, err := eventSvc.Publish("acme", "fest"); err != nil {
+	if _, err := eventSvc.Publish(owner, "acme", "fest"); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 	return f

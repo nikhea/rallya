@@ -211,7 +211,7 @@ func TestLifecyclePublishUnpublishCancel(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	// Cancel from draft -> invalid.
-	if _, err := f.svc.Cancel("acme", d.Slug); !errors.Is(err, service.ErrInvalidStatus) {
+	if _, err := f.svc.Cancel(f.user, "acme", d.Slug); !errors.Is(err, service.ErrInvalidStatus) {
 		t.Fatalf("expected ErrInvalidStatus, got %v", err)
 	}
 	// Publish -> announcements to opted-in only.
@@ -220,7 +220,7 @@ func TestLifecyclePublishUnpublishCancel(t *testing.T) {
 	loud := uuid.New()
 	f.orgs.addMember(f.org, loud, "loud@test.com", "Loud", true)
 	_ = outsider
-	pub, err := f.svc.Publish("acme", d.Slug)
+	pub, err := f.svc.Publish(f.user, "acme", d.Slug)
 	if err != nil {
 		t.Fatalf("publish: %v", err)
 	}
@@ -244,24 +244,24 @@ func TestLifecyclePublishUnpublishCancel(t *testing.T) {
 		t.Fatalf("announcement targeting wrong: %v", emails)
 	}
 	// Double publish -> invalid.
-	if _, err := f.svc.Publish("acme", d.Slug); !errors.Is(err, service.ErrInvalidStatus) {
+	if _, err := f.svc.Publish(f.user, "acme", d.Slug); !errors.Is(err, service.ErrInvalidStatus) {
 		t.Fatalf("expected ErrInvalidStatus, got %v", err)
 	}
 	// Unpublish -> draft, then cancel-from-draft invalid, publish, cancel.
-	if _, err := f.svc.Unpublish("acme", d.Slug); err != nil {
+	if _, err := f.svc.Unpublish(f.user, "acme", d.Slug); err != nil {
 		t.Fatalf("unpublish: %v", err)
 	}
-	if _, err := f.svc.Cancel("acme", d.Slug); !errors.Is(err, service.ErrInvalidStatus) {
+	if _, err := f.svc.Cancel(f.user, "acme", d.Slug); !errors.Is(err, service.ErrInvalidStatus) {
 		t.Fatalf("expected ErrInvalidStatus, got %v", err)
 	}
-	if _, err := f.svc.Publish("acme", d.Slug); err != nil {
+	if _, err := f.svc.Publish(f.user, "acme", d.Slug); err != nil {
 		t.Fatalf("republish: %v", err)
 	}
-	if _, err := f.svc.Cancel("acme", d.Slug); err != nil {
+	if _, err := f.svc.Cancel(f.user, "acme", d.Slug); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 	// Cancelled is terminal.
-	if _, err := f.svc.Publish("acme", d.Slug); !errors.Is(err, service.ErrInvalidStatus) {
+	if _, err := f.svc.Publish(f.user, "acme", d.Slug); !errors.Is(err, service.ErrInvalidStatus) {
 		t.Fatalf("expected ErrInvalidStatus, got %v", err)
 	}
 	// Published (then cancelled) visibility via public API while published.
@@ -274,12 +274,12 @@ func TestUpdateDeleteAndCovers(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	newTitle := "New"
-	upd, err := f.svc.UpdateEvent("acme", d.Slug, service.UpdateInput{Title: &newTitle})
+	upd, err := f.svc.UpdateEvent(f.user, "acme", d.Slug, service.UpdateInput{Title: &newTitle})
 	if err != nil || upd.Title != "New" {
 		t.Fatalf("update: %+v %v", upd, err)
 	}
 	bad := ""
-	if _, err := f.svc.UpdateEvent("acme", d.Slug, service.UpdateInput{Title: &bad}); !errors.Is(err, service.ErrInvalidTitle) {
+	if _, err := f.svc.UpdateEvent(f.user, "acme", d.Slug, service.UpdateInput{Title: &bad}); !errors.Is(err, service.ErrInvalidTitle) {
 		t.Fatalf("expected ErrInvalidTitle, got %v", err)
 	}
 	// Cover validation.
@@ -306,7 +306,7 @@ func TestUpdateDeleteAndCovers(t *testing.T) {
 	}
 	_ = withCover2
 	// Delete removes cover too.
-	if err := f.svc.DeleteEvent("acme", d.Slug); err != nil {
+	if err := f.svc.DeleteEvent(f.user, "acme", d.Slug); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if len(f.storage.deleted) != 2 {
@@ -327,7 +327,7 @@ func TestListFilters(t *testing.T) {
 			t.Fatalf("create: %v", err)
 		}
 		if pub {
-			if _, err := f.svc.Publish("acme", d.Slug); err != nil {
+			if _, err := f.svc.Publish(f.user, "acme", d.Slug); err != nil {
 				t.Fatalf("publish: %v", err)
 			}
 		}
@@ -452,7 +452,7 @@ func TestDeleteEventCleansGalleryAssets(t *testing.T) {
 		t.Fatalf("upload: %v", err)
 	}
 	before := len(f.storage.deleted)
-	if err := f.svc.DeleteEvent("acme", d.Slug); err != nil {
+	if err := f.svc.DeleteEvent(f.user, "acme", d.Slug); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	// cover clone + 2 gallery assets cleaned.

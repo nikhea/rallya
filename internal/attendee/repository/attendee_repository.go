@@ -3,6 +3,7 @@ package repository
 import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/nikhea/rallya/internal/attendee/model"
 )
@@ -87,6 +88,38 @@ func (r *AttendeeRepository) CancelForOrder(db *gorm.DB, orderID uuid.UUID) erro
 	return dbOr(r, db).Model(&model.Attendee{}).
 		Where("order_id = ? AND status = ?", orderID, model.AttendeeStatusRegistered).
 		Update("status", model.AttendeeStatusCancelled).Error
+}
+
+// GetForUpdate loads a row with a write lock: concurrent scans of the same
+// QR serialize here so only the first flips to CHECKED_IN (the loser lands
+// on ALREADY_CHECKED_IN). Must run inside the caller's tx.
+func (r *AttendeeRepository) GetForUpdate(tx *gorm.DB, id uuid.UUID) (*model.Attendee, error) {
+	var a model.Attendee
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&a, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// CountByStatus tallies an event's roster per status (door stats).
+func (r *AttendeeRepository) CountByStatus(eventID uuid.UUID) (map[string]int64, error) {
+	type row struct {
+		Status string
+		N      int64
+	}
+	var rows []row
+	if err := r.db.Model(&model.Attendee{}).
+		Select("status, COUNT(*) AS n").
+		Where("event_id = ?", eventID).
+		Group("status").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := map[string]int64{}
+	for _, row := range rows {
+		out[row.Status] = row.N
+	}
+	return out, nil
 }
 
 func dbOr(r *AttendeeRepository, db *gorm.DB) *gorm.DB {

@@ -109,7 +109,7 @@ func newOrderFixture(t *testing.T) *orderFixture {
 	if err != nil {
 		t.Fatalf("create event: %v", err)
 	}
-	if _, err := eventSvc.Publish("acme", ev.Slug); err != nil {
+	if _, err := eventSvc.Publish(owner, "acme", ev.Slug); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 	free, err := ticketSvc.CreateType(&owner, "acme", ev.Slug, ticketservice.CreateInput{Name: "Free", QuantityTotal: 10})

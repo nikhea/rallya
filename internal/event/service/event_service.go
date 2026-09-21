@@ -14,6 +14,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/nikhea/rallya/cmd/config"
+	auditmodel "github.com/nikhea/rallya/internal/audit/model"
+	auditsvc "github.com/nikhea/rallya/internal/audit/service"
 	"github.com/nikhea/rallya/internal/auth/token"
 	"github.com/nikhea/rallya/internal/event/cover"
 	eventdto "github.com/nikhea/rallya/internal/event/dto"
@@ -60,6 +62,7 @@ type EventService struct {
 	orgs     OrgResolver
 	enqueuer jobs.Enqueuer
 	storage  CoverStorage
+	auditor  auditsvc.Emitter
 }
 
 // NewEventService builds the service. orgs is required; enqueuer/storage
@@ -73,6 +76,18 @@ func (s *EventService) SetEnqueuer(e jobs.Enqueuer) { s.enqueuer = e }
 
 // SetCoverStorage wires cover persistence.
 func (s *EventService) SetCoverStorage(c CoverStorage) { s.storage = c }
+
+// SetAuditEmitter wires audit-trail emission (nil-safe when absent).
+func (s *EventService) SetAuditEmitter(a auditsvc.Emitter) { s.auditor = a }
+
+// emit records one audit entry (nil-safe when unwired). Call inside the
+// action's tx so entry and mutation commit atomically.
+func (s *EventService) emit(tx *gorm.DB, e auditsvc.Entry) error {
+	if s.auditor == nil {
+		return nil
+	}
+	return s.auditor.EmitTx(tx, e)
+}
 
 // ---------- create / read ----------
 
@@ -133,7 +148,16 @@ func (s *EventService) CreateEvent(creatorID uuid.UUID, orgRef string, in Create
 			}
 		}
 		e.Slug = slug
-		err := s.repo.CreateEvent(nil, e)
+		err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+			if err := s.repo.CreateEvent(tx, e); err != nil {
+				return err
+			}
+			return s.emit(tx, auditsvc.Entry{
+				OrgID: &orgID, ActorID: &creatorID,
+				Action: "event.created", ObjectType: auditmodel.ObjectEvent, ObjectID: &e.ID,
+				After: map[string]any{"title": title, "slug": slug},
+			})
+		})
 		if err == nil {
 			return toEvent(e), nil
 		}
@@ -270,7 +294,7 @@ type UpdateInput struct {
 
 // UpdateEvent edits a draft or published event (ADMIN+ upstream).
 // Status changes go through publish/unpublish/cancel, not here.
-func (s *EventService) UpdateEvent(orgRef, eventRef string, in UpdateInput) (*eventdto.Event, error) {
+func (s *EventService) UpdateEvent(actorID uuid.UUID, orgRef, eventRef string, in UpdateInput) (*eventdto.Event, error) {
 	orgID, err := s.orgs.ResolveOrgID(orgRef)
 	if err != nil {
 		return nil, ErrOrgUnresolved
@@ -279,6 +303,7 @@ func (s *EventService) UpdateEvent(orgRef, eventRef string, in UpdateInput) (*ev
 	if err != nil {
 		return nil, err
 	}
+	before := eventSnapshot(e)
 	if in.Title != nil {
 		if strings.TrimSpace(*in.Title) == "" {
 			return nil, ErrInvalidTitle
@@ -324,7 +349,7 @@ func (s *EventService) UpdateEvent(orgRef, eventRef string, in UpdateInput) (*ev
 			old = *e.CoverURL
 		}
 		e.CoverURL = nil
-		if err := s.repo.UpdateEvent(nil, e); err != nil {
+		if err := s.saveWithAudit(actorID, orgID, e, before); err != nil {
 			return nil, err
 		}
 		if old != "" {
@@ -332,18 +357,60 @@ func (s *EventService) UpdateEvent(orgRef, eventRef string, in UpdateInput) (*ev
 		}
 		return toEvent(e), nil
 	}
-	if err := s.repo.UpdateEvent(nil, e); err != nil {
-		if isUniqueViolation(err) {
-			return nil, ErrSlugTaken
-		}
+	if err := s.saveWithAudit(actorID, orgID, e, before); err != nil {
 		return nil, err
 	}
 	return toEvent(e), nil
 }
 
+// eventSnapshot captures the audited fields of an event row.
+func eventSnapshot(e *model.Event) map[string]any {
+	snap := map[string]any{"title": e.Title, "slug": e.Slug, "status": string(e.Status)}
+	if e.Venue != nil {
+		snap["venue"] = *e.Venue
+	}
+	if e.Capacity != nil {
+		snap["capacity"] = *e.Capacity
+	}
+	return snap
+}
+
+// saveWithAudit persists the row and emits event.updated with the field
+// diff (no-op rows still save; empty diffs emit after-only status context).
+func (s *EventService) saveWithAudit(actorID, orgID uuid.UUID, e *model.Event, before map[string]any) error {
+	after := eventSnapshot(e)
+	diffBefore, diffAfter := map[string]any{}, map[string]any{}
+	for k, b := range before {
+		if a, ok := after[k]; !ok || a != b {
+			diffBefore[k] = b
+			if a, ok := after[k]; ok {
+				diffAfter[k] = a
+			}
+		}
+	}
+	for k, a := range after {
+		if _, ok := before[k]; !ok {
+			diffAfter[k] = a
+		}
+	}
+	return s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.UpdateEvent(tx, e); err != nil {
+			if isUniqueViolation(err) {
+				return ErrSlugTaken
+			}
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: &actorID,
+			Action: "event.updated", ObjectType: auditmodel.ObjectEvent, ObjectID: &e.ID,
+			Before: diffBefore, After: diffAfter,
+		})
+	})
+}
+
 // Publish transitions DRAFT -> PUBLISHED and queues announcements to
 // opted-in members transactionally with the transition.
-func (s *EventService) Publish(orgRef, eventRef string) (*eventdto.Event, error) {
+func (s *EventService) Publish(actorID uuid.UUID, orgRef, eventRef string) (*eventdto.Event, error) {
 	orgID, err := s.orgs.ResolveOrgID(orgRef)
 	if err != nil {
 		return nil, ErrOrgUnresolved
@@ -368,6 +435,14 @@ func (s *EventService) Publish(orgRef, eventRef string) (*eventdto.Event, error)
 		if err := s.repo.UpdateEvent(tx, e); err != nil {
 			return err
 		}
+		if err := s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: &actorID,
+			Action: "event.published", ObjectType: auditmodel.ObjectEvent, ObjectID: &e.ID,
+			Before: map[string]any{"status": string(model.EventStatusDraft)},
+			After:  map[string]any{"status": string(model.EventStatusPublished)},
+		}); err != nil {
+			return err
+		}
 		for _, t := range targets {
 			if err := s.enqueueTx(tx, jobs.SendEventPublishedEmailArgs{
 				EventID: e.ID, EventTitle: e.Title,
@@ -385,16 +460,16 @@ func (s *EventService) Publish(orgRef, eventRef string) (*eventdto.Event, error)
 }
 
 // Unpublish transitions PUBLISHED -> DRAFT.
-func (s *EventService) Unpublish(orgRef, eventRef string) (*eventdto.Event, error) {
-	return s.transition(orgRef, eventRef, model.EventStatusPublished, model.EventStatusDraft)
+func (s *EventService) Unpublish(actorID uuid.UUID, orgRef, eventRef string) (*eventdto.Event, error) {
+	return s.transition(actorID, orgRef, eventRef, model.EventStatusPublished, model.EventStatusDraft)
 }
 
 // Cancel transitions PUBLISHED -> CANCELLED (terminal).
-func (s *EventService) Cancel(orgRef, eventRef string) (*eventdto.Event, error) {
-	return s.transition(orgRef, eventRef, model.EventStatusPublished, model.EventStatusCancelled)
+func (s *EventService) Cancel(actorID uuid.UUID, orgRef, eventRef string) (*eventdto.Event, error) {
+	return s.transition(actorID, orgRef, eventRef, model.EventStatusPublished, model.EventStatusCancelled)
 }
 
-func (s *EventService) transition(orgRef, eventRef string, from, to model.EventStatus) (*eventdto.Event, error) {
+func (s *EventService) transition(actorID uuid.UUID, orgRef, eventRef string, from, to model.EventStatus) (*eventdto.Event, error) {
 	orgID, err := s.orgs.ResolveOrgID(orgRef)
 	if err != nil {
 		return nil, ErrOrgUnresolved
@@ -407,7 +482,21 @@ func (s *EventService) transition(orgRef, eventRef string, from, to model.EventS
 		return nil, ErrInvalidStatus
 	}
 	e.Status = to
-	if err := s.repo.UpdateEvent(nil, e); err != nil {
+	action := "event.unpublished"
+	if to == model.EventStatusCancelled {
+		action = "event.cancelled"
+	}
+	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.UpdateEvent(tx, e); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: &actorID,
+			Action: action, ObjectType: auditmodel.ObjectEvent, ObjectID: &e.ID,
+			Before: map[string]any{"status": string(from)},
+			After:  map[string]any{"status": string(to)},
+		})
+	}); err != nil {
 		return nil, err
 	}
 	return toEvent(e), nil
@@ -415,7 +504,7 @@ func (s *EventService) transition(orgRef, eventRef string, from, to model.EventS
 
 // DeleteEvent hard-deletes an event (OWNER upstream) with its cover and
 // gallery assets (rows cascade in DDL; provider cleanup best-effort).
-func (s *EventService) DeleteEvent(orgRef, eventRef string) error {
+func (s *EventService) DeleteEvent(actorID uuid.UUID, orgRef, eventRef string) error {
 	orgID, err := s.orgs.ResolveOrgID(orgRef)
 	if err != nil {
 		return ErrOrgUnresolved
@@ -433,7 +522,16 @@ func (s *EventService) DeleteEvent(orgRef, eventRef string) error {
 			assets = append(assets, img.URL)
 		}
 	}
-	if err := s.repo.DeleteEvent(nil, e.ID); err != nil {
+	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.emit(tx, auditsvc.Entry{
+			OrgID: &orgID, ActorID: &actorID,
+			Action: "event.deleted", ObjectType: auditmodel.ObjectEvent, ObjectID: &e.ID,
+			Before: map[string]any{"title": e.Title, "slug": e.Slug},
+		}); err != nil {
+			return err
+		}
+		return s.repo.DeleteEvent(tx, e.ID)
+	}); err != nil {
 		return err
 	}
 	for _, url := range assets {

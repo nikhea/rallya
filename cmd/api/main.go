@@ -21,10 +21,18 @@ import (
 	attendeehandler "github.com/nikhea/rallya/internal/attendee/handler"
 	attendeerepository "github.com/nikhea/rallya/internal/attendee/repository"
 	attendeeservice "github.com/nikhea/rallya/internal/attendee/service"
+	audit "github.com/nikhea/rallya/internal/audit"
+	audithandler "github.com/nikhea/rallya/internal/audit/handler"
+	auditrepository "github.com/nikhea/rallya/internal/audit/repository"
+	auditservice "github.com/nikhea/rallya/internal/audit/service"
 	auth "github.com/nikhea/rallya/internal/auth"
 	"github.com/nikhea/rallya/internal/auth/handler"
 	"github.com/nikhea/rallya/internal/auth/repository"
 	"github.com/nikhea/rallya/internal/auth/service"
+	checkin "github.com/nikhea/rallya/internal/checkin"
+	checkinhandler "github.com/nikhea/rallya/internal/checkin/handler"
+	checkinrepository "github.com/nikhea/rallya/internal/checkin/repository"
+	checkinservice "github.com/nikhea/rallya/internal/checkin/service"
 	event "github.com/nikhea/rallya/internal/event"
 	"github.com/nikhea/rallya/internal/event/cover"
 	eventhandler "github.com/nikhea/rallya/internal/event/handler"
@@ -138,12 +146,20 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Audit domain: append-only trail; every mutating domain emits
+		// through the Emitter seam (wired below per service). Routes
+		// register last (they need every repo + the enforcer).
+		auditRepo := auditrepository.NewAuditRepository(config.DB)
+		auditSvc := auditservice.NewAuditService(auditRepo)
+		auditHandler := audithandler.NewHandler(auditSvc)
+
 		// Organization domain: consumes auth via UserReader; mail via River.
 		orgRepo := orgrepository.NewOrgRepository(config.DB)
 		orgSvc := orgservice.NewOrgService(orgRepo, authSvc)
 		orgSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
 		orgSvc.SetGroupSyncer(iam.NewMembershipSyncer(enforcer))
 		orgSvc.SetPolicySeeder(iam.NewOrgPolicySeeder(enforcer))
+		orgSvc.SetAuditEmitter(auditSvc)
 		orgHandler := orghandler.NewHandler(orgSvc)
 		organization.RegisterRoutes(api.Group("/orgs"), orgHandler, orgRepo, authRepo, enforcer)
 
@@ -151,6 +167,7 @@ func main() {
 		eventRepo := eventrepository.NewEventRepository(config.DB)
 		eventSvc := eventservice.NewEventService(eventRepo, orgSvc)
 		eventSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		eventSvc.SetAuditEmitter(auditSvc)
 		if cld, err := cover.NewCloudinary(); err != nil {
 			slog.Warn("Cloudinary unconfigured, covers stay on local disk", "error", err)
 			eventSvc.SetCoverStorage(cover.NewLocal("./uploads"))
@@ -164,6 +181,7 @@ func main() {
 		// Ticketing domain: types + pricing + rules over the event adapter.
 		ticketRepo := ticketrepository.NewTicketRepository(config.DB)
 		ticketSvc := ticketservice.NewTicketService(ticketRepo, ticketservice.NewEventAdapter(eventSvc))
+		ticketSvc.SetAuditEmitter(auditSvc)
 		ticketHandler := tickethandler.NewHandler(ticketSvc)
 		ticketing.RegisterRoutes(api, ticketHandler, authRepo, orgRepo, enforcer)
 		// Org delete cleans event assets via the event seam (rows cascade).
@@ -173,6 +191,7 @@ func main() {
 		orderRepo := orderrepository.NewOrderRepository(config.DB)
 		orderSvc := orderservice.NewOrderService(orderRepo, ticketSvc, eventSvc, orgSvc, authSvc)
 		orderSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
+		orderSvc.SetAuditEmitter(auditSvc)
 		// QR secret resolved once here: fail-closed at boot, never per-request
 		// (a missing secret must not os.Exit inside a handler).
 		orderSvc.SetQRSecret(config.QRSigningSecret())
@@ -192,6 +211,15 @@ func main() {
 		attendee.RegisterRoutes(api, attendeeHandler, authRepo, orgRepo, enforcer)
 		orderSvc.SetAttendeeMinter(attendeeSvc)
 
+		// Check-in domain: door scans over the attendee seam (row flip
+		// stays in attendees; logging + QR verify here).
+		checkinRepo := checkinrepository.NewCheckinRepository(config.DB)
+		checkinSvc := checkinservice.NewCheckinService(config.DB, checkinRepo, attendeeSvc, eventSvc)
+		checkinSvc.SetQRSecret(config.QRSigningSecret())
+		checkinSvc.SetAuditEmitter(auditSvc)
+		checkinHandler := checkinhandler.NewHandler(checkinSvc)
+		checkin.RegisterRoutes(api, checkinHandler, authRepo, orgRepo, enforcer)
+
 		// Payments domain: Stripe Checkout + webhooks. Degrades to 503s
 		// when unconfigured; boot never fails for missing keys.
 		var checkout paymentservice.CheckoutProvider
@@ -203,6 +231,9 @@ func main() {
 		paymentSvc := paymentservice.NewPaymentService(orderSvc, checkout)
 		paymentHandler := paymenthandler.NewHandler(paymentSvc, config.AppURL())
 		payment.RegisterRoutes(api, paymentHandler, authRepo)
+
+		// Audit reads register last (need orgRepo + enforcer).
+		audit.RegisterRoutes(api, auditHandler, authRepo, orgRepo, enforcer)
 
 		// Cover images + uploads served read-only (local disk for MVP).
 		if err := os.MkdirAll("./uploads", 0o755); err != nil {

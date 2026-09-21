@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	auditmodel "github.com/nikhea/rallya/internal/audit/model"
+	auditsvc "github.com/nikhea/rallya/internal/audit/service"
 	"github.com/nikhea/rallya/internal/auth/model"
 	"github.com/nikhea/rallya/internal/auth/token"
 	"github.com/nikhea/rallya/internal/notification/jobs"
@@ -165,7 +167,14 @@ func (s *OrgService) AcceptInvite(userID uuid.UUID, raw string) (*orgdto.Org, er
 			}
 			return err
 		}
-		return s.repo.ConsumeInvite(tx, inv.ID, true, now)
+		if err := s.repo.ConsumeInvite(tx, inv.ID, true, now); err != nil {
+			return err
+		}
+		return s.emit(tx, auditsvc.Entry{
+			OrgID: &o.ID, ActorID: &u.ID,
+			Action: "member.added", ObjectType: auditmodel.ObjectMember, ObjectID: &u.ID,
+			After: map[string]any{"email": u.Email, "role": string(inv.Role), "via": "invite"},
+		})
 	}); err != nil {
 		return nil, err
 	}

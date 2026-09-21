@@ -163,7 +163,8 @@ func (h *Handler) UpdateEvent(c *gin.Context) {
 		return
 	}
 	clearCover := in.ClearCover != nil && *in.ClearCover
-	e, err := h.svc.UpdateEvent(orgRef(c), c.Param("eventId"), service.UpdateInput{
+	uid, _ := authhandler.UserFromContext(c)
+	e, err := h.svc.UpdateEvent(uid, orgRef(c), c.Param("eventId"), service.UpdateInput{
 		Title: in.Title, Slug: in.Slug, Description: in.Description,
 		Venue: in.Venue, Location: in.Location,
 		StartsAt: starts, EndsAt: ends, Capacity: in.Capacity,
@@ -191,7 +192,8 @@ func (h *Handler) UpdateEvent(c *gin.Context) {
 // @Failure		404		{object}	eventdto.ErrorAlias
 // @Router			/orgs/{id}/events/{eventId} [delete]
 func (h *Handler) DeleteEvent(c *gin.Context) {
-	if err := h.svc.DeleteEvent(orgRef(c), c.Param("eventId")); err != nil {
+	uid, _ := authhandler.UserFromContext(c)
+	if err := h.svc.DeleteEvent(uid, orgRef(c), c.Param("eventId")); err != nil {
 		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
@@ -214,7 +216,8 @@ func (h *Handler) DeleteEvent(c *gin.Context) {
 // @Failure		404		{object}	eventdto.ErrorAlias
 // @Router			/orgs/{id}/events/{eventId}/publish [post]
 func (h *Handler) PublishEvent(c *gin.Context) {
-	e, err := h.svc.Publish(orgRef(c), c.Param("eventId"))
+	uid, _ := authhandler.UserFromContext(c)
+	e, err := h.svc.Publish(uid, orgRef(c), c.Param("eventId"))
 	if err != nil {
 		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
 		return
@@ -238,7 +241,8 @@ func (h *Handler) PublishEvent(c *gin.Context) {
 // @Failure		404		{object}	eventdto.ErrorAlias
 // @Router			/orgs/{id}/events/{eventId}/unpublish [post]
 func (h *Handler) UnpublishEvent(c *gin.Context) {
-	e, err := h.svc.Unpublish(orgRef(c), c.Param("eventId"))
+	uid, _ := authhandler.UserFromContext(c)
+	e, err := h.svc.Unpublish(uid, orgRef(c), c.Param("eventId"))
 	if err != nil {
 		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
 		return
@@ -262,7 +266,8 @@ func (h *Handler) UnpublishEvent(c *gin.Context) {
 // @Failure		404		{object}	eventdto.ErrorAlias
 // @Router			/orgs/{id}/events/{eventId}/cancel [post]
 func (h *Handler) CancelEvent(c *gin.Context) {
-	e, err := h.svc.Cancel(orgRef(c), c.Param("eventId"))
+	uid, _ := authhandler.UserFromContext(c)
+	e, err := h.svc.Cancel(uid, orgRef(c), c.Param("eventId"))
 	if err != nil {
 		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
 		return
