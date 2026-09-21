@@ -22,6 +22,18 @@ Roster conventions everywhere (`page`/`perPage` max 100). Bad values 400.
 - Full identity data (superadmin is root); payment identifiers stripped
   (bearer-adjacent, not identity). Audit-on-read is the control, not
   redaction.
-- Drift flags deferred: the follow-up repair slice (`policies/reseed`,
-  `policies/sync` with `{added, removed, total}` diffs) reports drift
-  authoritatively — no half-signal here.
+- Drift flags deferred: the repair endpoints below report drift
+  authoritatively — no half-signal in the roster views.
+
+## Repairs
+
+- `POST /admin/orgs/:id/policies/reseed` — re-run the org seed,
+  `{added, removed: 0, total}`. Seeds never remove.
+- `POST /admin/users/:id/policies/sync` — converge groupings to
+  membership truth (sweep-then-add per org, stale orgs swept, `g2`
+  untouched), `{added, removed, total}`.
+
+Both audited (`admin.policies_reseeded`, `admin.policies_synced`) and
+idempotent — safe to hammer at 2am. Note the Casbin trap this exposed:
+`AddPolicies` is all-or-nothing, so `SeedOrgPolicies` adds missing rows
+one by one (it heals partial drift; bulk-add cannot).

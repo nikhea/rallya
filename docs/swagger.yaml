@@ -98,6 +98,18 @@ definitions:
         example: 3
         type: integer
     type: object
+  admindto.PolicyDiff:
+    properties:
+      added:
+        example: 2
+        type: integer
+      removed:
+        example: 1
+        type: integer
+      total:
+        example: 27
+        type: integer
+    type: object
   admindto.UserDetail:
     properties:
       createdAt:
@@ -1255,6 +1267,43 @@ paths:
       summary: Tenant dispute-triage view
       tags:
       - admin
+  /admin/orgs/{id}/policies/reseed:
+    post:
+      description: Idempotent re-seed; returns what changed. Audited.
+      parameters:
+      - description: Org UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admindto.PolicyDiff'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Repair org Casbin rows
+      tags:
+      - admin
   /admin/users:
     get:
       description: Email-fragment search with superadmin flags.
@@ -1375,6 +1424,43 @@ paths:
       security:
       - BearerAuth: []
       summary: Cross-tenant order history
+      tags:
+      - admin
+  /admin/users/{id}/policies/sync:
+    post:
+      description: Sweep-then-add per org; stale orgs swept; g2 untouched. Audited.
+      parameters:
+      - description: User UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admindto.PolicyDiff'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/admindto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Converge user groupings to memberships
       tags:
       - admin
   /attendees/{id}:

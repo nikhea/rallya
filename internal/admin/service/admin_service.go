@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/casbin/casbin/v3"
@@ -218,4 +219,125 @@ func toOrderDTO(o *ordermodel.Order) *orderdto.Order {
 
 func isNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+// PolicyDiff is the idempotent-repair report.
+type PolicyDiff struct {
+	Added   int
+	Removed int
+	Total   int
+}
+
+// ReseedOrgPolicies re-runs the org policy seed (adds missing rows; never
+// removes) and reports the diff. Repairs drifted Casbin rows without DB
+// surgery.
+func (s *AdminService) ReseedOrgPolicies(actorID, orgID uuid.UUID) (*PolicyDiff, error) {
+	if _, err := s.orgs.GetOrgByID(orgID); err != nil {
+		if isNotFound(err) {
+			return nil, ErrOrgNotFound
+		}
+		return nil, err
+	}
+	before, err := iam.CountOrgPolicies(s.enforce, orgID)
+	if err != nil {
+		return nil, err
+	}
+	if err := iam.SeedOrgPolicies(s.enforce, orgID); err != nil {
+		return nil, err
+	}
+	after, err := iam.CountOrgPolicies(s.enforce, orgID)
+	if err != nil {
+		return nil, err
+	}
+	diff := &PolicyDiff{Added: after - before, Removed: 0, Total: after}
+	if err := s.emit(actorID, &orgID, "admin.policies_reseeded", auditmodel.ObjectPolicy, &orgID); err != nil {
+		return nil, err
+	}
+	return diff, nil
+}
+
+// SyncUserPolicies converges a user's groupings to membership truth:
+// every membership gets its grouping (sweep-then-add), and groupings for
+// orgs with no membership are swept. Superadmin g2 rows are untouched.
+func (s *AdminService) SyncUserPolicies(actorID, userID uuid.UUID) (*PolicyDiff, error) {
+	if _, err := s.users.GetUserByID(userID); err != nil {
+		if isNotFound(err) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	before, err := groupingSet(s.enforce, userID)
+	if err != nil {
+		return nil, err
+	}
+	ms, err := s.orgs.ListUserMemberships(userID)
+	if err != nil {
+		return nil, err
+	}
+	syncer := iam.NewMembershipSyncer(s.enforce)
+	keep := map[string]bool{}
+	for _, m := range ms {
+		if err := syncer.SyncMembership(userID, m.OrganizationID, &m.Role); err != nil {
+			return nil, err
+		}
+		keep[m.OrganizationID.String()] = true
+	}
+	for orgRef := range beforeOrgs(before) {
+		if !keep[orgRef] {
+			orgID, err := uuid.Parse(orgRef)
+			if err != nil {
+				continue
+			}
+			if err := syncer.SyncMembership(userID, orgID, nil); err != nil {
+				return nil, err
+			}
+		}
+	}
+	after, err := groupingSet(s.enforce, userID)
+	if err != nil {
+		return nil, err
+	}
+	added, removed := 0, 0
+	for k := range after {
+		if !before[k] {
+			added++
+		}
+	}
+	for k := range before {
+		if !after[k] {
+			removed++
+		}
+	}
+	diff := &PolicyDiff{Added: added, Removed: removed, Total: len(after)}
+	if err := s.emit(actorID, nil, "admin.policies_synced", auditmodel.ObjectUser, &userID); err != nil {
+		return nil, err
+	}
+	return diff, nil
+}
+
+// groupingSet snapshots a user's 3-field groupings as role@org strings
+// (g2 superadmin rows excluded — never membership state).
+func groupingSet(e *casbin.Enforcer, userID uuid.UUID) (map[string]bool, error) {
+	rows, err := iam.UserGroupings(e, userID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for _, row := range rows {
+		if len(row) == 3 {
+			out[row[1]+"@"+row[2]] = true
+		}
+	}
+	return out, nil
+}
+
+// beforeOrgs lists the org domains in a grouping set.
+func beforeOrgs(set map[string]bool) map[string]bool {
+	orgs := map[string]bool{}
+	for k := range set {
+		if i := strings.Index(k, "@"); i >= 0 {
+			orgs[k[i+1:]] = true
+		}
+	}
+	return orgs
 }

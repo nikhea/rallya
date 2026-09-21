@@ -79,8 +79,10 @@ func MemberPermissions() []Permission {
 	}
 }
 
-// SeedOrgPolicies installs the default per-org role policies. Idempotent:
-// existing rows are left alone, so it doubles as the repair path.
+// SeedOrgPolicies installs the default per-org role policies. Per-row
+// additive: existing rows are left alone AND missing rows are healed, so
+// it doubles as the repair path (Casbin's AddPolicies is all-or-nothing
+// and cannot heal partial drift — hence the loop).
 func SeedOrgPolicies(e *casbin.Enforcer, orgID uuid.UUID) error {
 	dom := orgID.String()
 	rules := [][]string{{"OWNER", dom, "*", "*"}}
@@ -90,16 +92,27 @@ func SeedOrgPolicies(e *casbin.Enforcer, orgID uuid.UUID) error {
 	for _, p := range MemberPermissions() {
 		rules = append(rules, []string{"MEMBER", dom, p.Obj, p.Act})
 	}
-	var added bool
+	var added int
 	err := LockWrite(func() error {
-		var err error
-		added, err = e.AddPolicies(rules)
-		return err
+		for _, r := range rules {
+			ok, err := e.HasPolicy(r)
+			if err != nil {
+				return fmt.Errorf("check org policy: %w", err)
+			}
+			if ok {
+				continue
+			}
+			if _, err := e.AddPolicy(r); err != nil {
+				return fmt.Errorf("add org policy: %w", err)
+			}
+			added++
+		}
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("seed org policies: %w", err)
 	}
-	if !added {
+	if added == 0 {
 		slog.Debug("org policies already present", "org", dom)
 	}
 	return nil
