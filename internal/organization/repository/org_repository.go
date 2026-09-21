@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,6 +47,25 @@ func (r *OrgRepository) GetOrgBySlug(slug string) (*model.Organization, error) {
 		return nil, err
 	}
 	return &o, nil
+}
+
+// ListOrgs returns orgs newest-first with name/slug search (platform reads;
+// hard deletes never list — GORM scopes them out by default).
+func (r *OrgRepository) ListOrgs(query string, limit, offset int) ([]model.Organization, int64, error) {
+	var out []model.Organization
+	var total int64
+	q := r.db.Model(&model.Organization{})
+	if query != "" {
+		like := "%" + strings.ToLower(query) + "%"
+		q = q.Where("LOWER(name) LIKE ? OR LOWER(slug) LIKE ?", like, like)
+	}
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&out).Error; err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
 }
 
 // UpdateOrg saves name/slug/logo changes.

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,6 +47,24 @@ func (r *AuthRepository) GetUserByEmail(email string) (*model.User, error) {
 		return nil, err
 	}
 	return &u, nil
+}
+
+// SearchUsers finds users by email fragment, newest first (platform reads).
+func (r *AuthRepository) SearchUsers(query string, limit, offset int) ([]model.User, int64, error) {
+	var out []model.User
+	var total int64
+	q := r.db.Model(&model.User{}).Preload("Profile")
+	if query != "" {
+		like := "%" + strings.ToLower(query) + "%"
+		q = q.Where("LOWER(email) LIKE ?", like)
+	}
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&out).Error; err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
 }
 
 // SetEmailVerified flips the flag.
