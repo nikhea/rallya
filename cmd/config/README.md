@@ -38,7 +38,23 @@ in `main`.
 | `RefreshTTL()` | `REFRESH_TTL_DAYS` | 30d | Refresh row + session lifetime |
 | `JWTTTL()` | — | = `AccessTTL()` | Backward-compat shim |
 | `SuperAdminEmails()` | `SUPERADMIN_EMAILS` | empty (none) | Comma-separated platform superadmin emails, lowercased; empty never wipes existing grants |
-| `AppURL()` | `APP_URL` | `http://localhost:8080` | Base for email links |
+| `AppURL()` | `APP_URL` | — (empty) | Base for email links; no hardcoded default, set per environment |
+
+## CORS (`cors.go`)
+
+`AllowedOrigins()` from `CORS_ALLOWED_ORIGINS` (comma-separated, trimmed).
+No hardcoded default: empty fails closed (cross-origin denied, same-origin
+and server-to-server unaffected; boot logs a warn). A single `*` allows all
+origins without credentials; explicit origins echo back with credentials
+(`Authorization` header). Allowed methods `GET/POST/PATCH/PUT/DELETE/OPTIONS`,
+preflight cache 12h.
+
+## Rate limiting (`ratelimit.go`)
+
+`AuthPerMin()` (`RATE_LIMIT_AUTH_PER_MIN`, default 10) guards `/auth/*`;
+`APIPerMin()` (`RATE_LIMIT_DEFAULT_PER_MIN`, default 600) guards the API.
+Bad values fall back to defaults. `TrustedProxies()` passes
+`TRUSTED_PROXIES` (comma CIDRs/IPs) to Gin; unset = `RemoteAddr` only.
 
 ## Mail (`mail.go`)
 

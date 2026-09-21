@@ -72,12 +72,10 @@ func JWTTTL() time.Duration {
 	return AccessTTL()
 }
 
-// AppURL is the public base URL used to build email links.
+// AppURL is the public base URL used to build email links. No hardcoded
+// default: unset means relative links — set APP_URL in every environment.
 func AppURL() string {
-	if url := os.Getenv("APP_URL"); url != "" {
-		return url
-	}
-	return "http://localhost:8080"
+	return strings.TrimSpace(os.Getenv("APP_URL"))
 }
 
 // SuperAdminEmails returns platform superadmin account emails

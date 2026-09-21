@@ -49,6 +49,7 @@ func TestRegisterEnqueuesVerificationWithOTP(t *testing.T) {
 }
 
 func TestVerifyByCodeFlowAndWelcome(t *testing.T) {
+	t.Setenv("APP_URL", "https://app.test.com")
 	_, _, svc, fake := testutil.SetupWithEnqueuer(t)
 	mustRegister(t, svc)
 	otp := lastVerificationOTP(t, fake).OTP
@@ -62,7 +63,7 @@ func TestVerifyByCodeFlowAndWelcome(t *testing.T) {
 		t.Fatalf("expected 1 welcome job, got %d", len(welcomes))
 	}
 	w, ok := welcomes[0].(jobs.SendWelcomeEmailArgs)
-	if !ok || w.Email != testEmail || w.Name != "John" || w.LoginLink == "" {
+	if !ok || w.Email != testEmail || w.Name != "John" || w.LoginLink != "https://app.test.com" {
 		t.Fatalf("unexpected welcome args: %+v", welcomes[0])
 	}
 	// Code single-use.
