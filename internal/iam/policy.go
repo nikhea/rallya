@@ -21,6 +21,7 @@ const (
 	ObjAttendee = "attendee"
 	ObjCheckin  = "checkin"
 	ObjAudit    = "audit"
+	ObjRole     = "role"
 
 	ActRead    = "read"
 	ActCreate  = "create"
@@ -66,6 +67,7 @@ func AdminPermissions() []Permission {
 		{ObjCheckin, ActCreate},
 		{ObjCheckin, ActUpdate},
 		{ObjAudit, ActRead},
+		{ObjRole, ActRead},
 	}
 }
 

@@ -466,12 +466,19 @@ func orgErrorStatus(err error) int {
 	case errors.Is(err, service.ErrSlugTaken),
 		errors.Is(err, service.ErrAlreadyMember),
 		errors.Is(err, service.ErrLastOwner),
-		errors.Is(err, service.ErrInviteConsumed):
+		errors.Is(err, service.ErrInviteConsumed),
+		errors.Is(err, service.ErrRoleExists),
+		errors.Is(err, service.ErrRoleAssigned),
+		errors.Is(err, service.ErrRoleCapReached):
 		return http.StatusConflict
 	case errors.Is(err, service.ErrInvalidSlug),
 		errors.Is(err, service.ErrInvalidName),
 		errors.Is(err, service.ErrUserNotFound),
-		errors.Is(err, service.ErrInvalidInvite):
+		errors.Is(err, service.ErrInvalidInvite),
+		errors.Is(err, service.ErrInvalidRoleName),
+		errors.Is(err, service.ErrRoleReserved),
+		errors.Is(err, service.ErrRoleNotFound),
+		errors.Is(err, service.ErrInvalidRolePermissions):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError

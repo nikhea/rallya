@@ -35,6 +35,14 @@ func (f *fakeSyncer) SyncMembership(userID, orgID uuid.UUID, role *orgmodel.Memb
 	return f.err
 }
 
+func (f *fakeSyncer) SyncCustomGrouping(_, _ uuid.UUID, _ string, _ bool) error {
+	return nil
+}
+
+func (f *fakeSyncer) SyncCustomPolicies(_ uuid.UUID, _ string, _ []service.RolePermission, _ bool) error {
+	return nil
+}
+
 type orgFixture struct {
 	db       *gorm.DB
 	svc      *service.OrgService

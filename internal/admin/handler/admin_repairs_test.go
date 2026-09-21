@@ -49,8 +49,8 @@ func TestHTTPAdminRepairs(t *testing.T) {
 	code, body := postAdmin(t, f, root, "/api/v1/admin/orgs/"+f.orgID+"/policies/reseed")
 	var reseed admindto.PolicyDiff
 	_ = json.Unmarshal(body, &reseed)
-	if code != http.StatusOK || reseed.Added != 0 || reseed.Removed != 0 || reseed.Total != 29 {
-		t.Fatalf("reseed healthy: want 0/0/29, got %d %+v (%s)", code, reseed, body)
+	if code != http.StatusOK || reseed.Added != 0 || reseed.Removed != 0 || reseed.Total != 30 {
+		t.Fatalf("reseed healthy: want 0/0/30, got %d %+v (%s)", code, reseed, body)
 	}
 
 	// Break one policy row behind the service's back; reseed must heal it.

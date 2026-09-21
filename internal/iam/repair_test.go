@@ -22,9 +22,9 @@ func TestCountOrgPolicies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
-	// 1 owner wildcard + 24 admin + 4 member = 29 (pins matrix drift).
-	if n != 29 {
-		t.Fatalf("want 29 policy rows, got %d", n)
+	// 1 owner wildcard + 25 admin + 4 member = 30 (pins matrix drift).
+	if n != 30 {
+		t.Fatalf("want 30 policy rows, got %d", n)
 	}
 	if err := iam.SeedOrgPolicies(e, org); err != nil {
 		t.Fatalf("reseed: %v", err)

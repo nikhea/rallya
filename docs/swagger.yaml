@@ -814,6 +814,25 @@ definitions:
     required:
     - name
     type: object
+  orgdto.CustomRole:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      holders:
+        example: 3
+        type: integer
+      id:
+        example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+        type: string
+      name:
+        example: door
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/orgdto.RolePermission'
+        type: array
+    type: object
   orgdto.DeclineInvite:
     properties:
       token:
@@ -822,6 +841,20 @@ definitions:
         type: string
     required:
     - token
+    type: object
+  orgdto.DefineRole:
+    properties:
+      name:
+        example: door
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/orgdto.RolePermission'
+        minItems: 1
+        type: array
+    required:
+    - name
+    - permissions
     type: object
   orgdto.ErrorAlias:
     properties:
@@ -931,6 +964,23 @@ definitions:
         example: acme
         type: string
     type: object
+  orgdto.RoleAssignment:
+    properties:
+      userId:
+        example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+        type: string
+    required:
+    - userId
+    type: object
+  orgdto.RolePermission:
+    properties:
+      action:
+        example: create
+        type: string
+      object:
+        example: checkin
+        type: string
+    type: object
   orgdto.UpdateMemberRole:
     properties:
       role:
@@ -964,6 +1014,16 @@ definitions:
         example: acme
         maxLength: 100
         type: string
+    type: object
+  orgdto.UpdateRolePermissions:
+    properties:
+      permissions:
+        items:
+          $ref: '#/definitions/orgdto.RolePermission'
+        minItems: 1
+        type: array
+    required:
+    - permissions
     type: object
   paymentdto.CheckoutResponse:
     properties:
@@ -3968,6 +4028,280 @@ paths:
       summary: Update my announcement preference
       tags:
       - orgs
+  /orgs/{id}/roles:
+    get:
+      description: Definitions with permission sets and holder counts.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/orgdto.CustomRole'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List custom roles
+      tags:
+      - roles
+    post:
+      consumes:
+      - application/json
+      description: Grants-only permission set, materialized post-commit. Audited.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.DefineRole'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/orgdto.CustomRole'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Define a custom role
+      tags:
+      - roles
+  /orgs/{id}/roles/{role}:
+    delete:
+      description: 409 while holders remain — unassign first.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role name
+        in: path
+        name: role
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Delete a custom role
+      tags:
+      - roles
+    patch:
+      consumes:
+      - application/json
+      description: Assignee groupings stand; grants change underneath.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role name
+        in: path
+        name: role
+        required: true
+        type: string
+      - description: Permission set
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.UpdateRolePermissions'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.CustomRole'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Replace a role's permission set
+      tags:
+      - roles
+  /orgs/{id}/roles/{role}/assign:
+    post:
+      consumes:
+      - application/json
+      description: Idempotent; member must exist.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role name
+        in: path
+        name: role
+        required: true
+        type: string
+      - description: Target member
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.RoleAssignment'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Grant a custom role to a member
+      tags:
+      - roles
+  /orgs/{id}/roles/{role}/unassign:
+    post:
+      consumes:
+      - application/json
+      description: Idempotent.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role name
+        in: path
+        name: role
+        required: true
+        type: string
+      - description: Target member
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.RoleAssignment'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.MessageAlias'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Revoke a custom role from a member
+      tags:
+      - roles
   /orgs/invites/accept:
     post:
       consumes:

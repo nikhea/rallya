@@ -16,6 +16,10 @@ sync/seeder implementations org consumes.
   removals sweep only; superadmin rows untouched. Everything idempotent.
 - Matrices live in `policy.go` (`Admin/MemberPermissions`); `matrix_test.go`
   pins them two-way against a hardcoded table — matrix changes MUST update both.
+- `SeedOrgPolicies` is per-row additive (bulk `AddPolicies` is all-or-nothing
+  and cannot heal partial drift). Custom roles materialize via `custom.go`
+  (`Ensure/Remove/ListCustomRolePolicies`); fixed-role sweeps never touch
+  custom rows (`isFixedRole` guard) — the admin repair suite proves it.
 - `SeedOrgPolicies` idempotent (doubles as repair); superadmin seed from
   `SUPERADMIN_EMAILS`, empty list is a strict no-op (never wipes on misconfig).
 - `Enforce` wrapper fails closed on errors AND blank inputs (wildcards must

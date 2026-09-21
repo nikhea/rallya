@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -221,6 +222,53 @@ func isNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
 }
 
+// rolePermissionWire mirrors the stored permission JSON.
+type rolePermissionWire struct {
+	Object string `json:"object"`
+	Action string `json:"action"`
+}
+
+// rematerializeCustomRoles rebuilds an org's custom p-rows from its
+// definitions (additive) and sweeps orphan custom rows (no definition).
+// Returns the orphan-sweep count.
+func (s *AdminService) rematerializeCustomRoles(orgID uuid.UUID) (int, error) {
+	defs, err := s.orgs.ListRoleDefs(orgID)
+	if err != nil {
+		return 0, err
+	}
+	defined := map[string]bool{}
+	for _, d := range defs {
+		defined[d.Name] = true
+		var perms []rolePermissionWire
+		if err := json.Unmarshal([]byte(d.Permissions), &perms); err != nil {
+			return 0, err
+		}
+		mapped := make([]iam.Permission, 0, len(perms))
+		for _, p := range perms {
+			mapped = append(mapped, iam.Permission{Obj: p.Object, Act: p.Action})
+		}
+		if _, err := iam.EnsureCustomRolePolicies(s.enforce, orgID, d.Name, mapped); err != nil {
+			return 0, err
+		}
+	}
+	live, err := iam.ListCustomRolePolicies(s.enforce, orgID)
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	for role := range live {
+		if defined[role] {
+			continue
+		}
+		n, err := iam.RemoveCustomRolePolicies(s.enforce, orgID, role)
+		if err != nil {
+			return 0, err
+		}
+		removed += n
+	}
+	return removed, nil
+}
+
 // PolicyDiff is the idempotent-repair report.
 type PolicyDiff struct {
 	Added   int
@@ -230,7 +278,8 @@ type PolicyDiff struct {
 
 // ReseedOrgPolicies re-runs the org policy seed (adds missing rows; never
 // removes) and reports the diff. Repairs drifted Casbin rows without DB
-// surgery.
+// surgery. Custom roles rebuild from their definitions; orphan custom rows
+// (no definition) are swept.
 func (s *AdminService) ReseedOrgPolicies(actorID, orgID uuid.UUID) (*PolicyDiff, error) {
 	if _, err := s.orgs.GetOrgByID(orgID); err != nil {
 		if isNotFound(err) {
@@ -245,11 +294,15 @@ func (s *AdminService) ReseedOrgPolicies(actorID, orgID uuid.UUID) (*PolicyDiff,
 	if err := iam.SeedOrgPolicies(s.enforce, orgID); err != nil {
 		return nil, err
 	}
+	removed, err := s.rematerializeCustomRoles(orgID)
+	if err != nil {
+		return nil, err
+	}
 	after, err := iam.CountOrgPolicies(s.enforce, orgID)
 	if err != nil {
 		return nil, err
 	}
-	diff := &PolicyDiff{Added: after - before, Removed: 0, Total: after}
+	diff := &PolicyDiff{Added: after - before, Removed: removed, Total: after}
 	if err := s.emit(actorID, &orgID, "admin.policies_reseeded", auditmodel.ObjectPolicy, &orgID); err != nil {
 		return nil, err
 	}
@@ -281,16 +334,33 @@ func (s *AdminService) SyncUserPolicies(actorID, userID uuid.UUID) (*PolicyDiff,
 			return nil, err
 		}
 		keep[m.OrganizationID.String()] = true
-	}
-	for orgRef := range beforeOrgs(before) {
-		if !keep[orgRef] {
-			orgID, err := uuid.Parse(orgRef)
-			if err != nil {
-				continue
-			}
-			if err := syncer.SyncMembership(userID, orgID, nil); err != nil {
+		customs, err := s.orgs.ListUserCustomRoles(nil, m.OrganizationID, userID)
+		if err != nil {
+			return nil, err
+		}
+		for _, role := range customs {
+			if err := syncer.SyncCustomGrouping(userID, m.OrganizationID, role, true); err != nil {
 				return nil, err
 			}
+		}
+	}
+	for key := range before {
+		role, orgRef := splitGroupingKey(key)
+		if keep[orgRef] {
+			continue
+		}
+		orgID, err := uuid.Parse(orgRef)
+		if err != nil {
+			continue
+		}
+		if isCustomRoleName(role) {
+			if err := syncer.SyncCustomGrouping(userID, orgID, role, false); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if err := syncer.SyncMembership(userID, orgID, nil); err != nil {
+			return nil, err
 		}
 	}
 	after, err := groupingSet(s.enforce, userID)
@@ -331,13 +401,21 @@ func groupingSet(e *casbin.Enforcer, userID uuid.UUID) (map[string]bool, error) 
 	return out, nil
 }
 
-// beforeOrgs lists the org domains in a grouping set.
-func beforeOrgs(set map[string]bool) map[string]bool {
-	orgs := map[string]bool{}
-	for k := range set {
-		if i := strings.Index(k, "@"); i >= 0 {
-			orgs[k[i+1:]] = true
-		}
+// splitGroupingKey splits a role@org snapshot key.
+func splitGroupingKey(key string) (role, org string) {
+	if i := strings.Index(key, "@"); i >= 0 {
+		return key[:i], key[i+1:]
 	}
-	return orgs
+	return key, ""
+}
+
+// isCustomRoleName reports non-fixed role values (fixed names can never be
+// custom definitions — reserved at creation).
+func isCustomRoleName(role string) bool {
+	switch role {
+	case "OWNER", "ADMIN", "MEMBER":
+		return false
+	default:
+		return true
+	}
 }

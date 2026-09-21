@@ -6,5 +6,7 @@ func AllModels() []any {
 		&Organization{},
 		&Membership{},
 		&Invite{},
+		&RoleDefinition{},
+		&MemberCustomRole{},
 	}
 }

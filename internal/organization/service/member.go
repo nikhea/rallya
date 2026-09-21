@@ -157,9 +157,19 @@ func (s *OrgService) RemoveMember(grantorID uuid.UUID, ref string, targetID uuid
 			return err
 		}
 	}
+	var customs []string
 	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.repo.DeleteMembership(tx, o.ID, targetID); err != nil {
 			return err
+		}
+		var err error
+		if customs, err = s.repo.ListUserCustomRoles(tx, o.ID, targetID); err != nil {
+			return err
+		}
+		for _, role := range customs {
+			if err := s.repo.UnassignCustomRole(tx, o.ID, targetID, role); err != nil {
+				return err
+			}
 		}
 		return s.emit(tx, auditsvc.Entry{
 			OrgID: &o.ID, ActorID: &grantorID,
@@ -170,6 +180,9 @@ func (s *OrgService) RemoveMember(grantorID uuid.UUID, ref string, targetID uuid
 		return err
 	}
 	s.sync(targetID, o.ID, nil)
+	for _, role := range customs {
+		s.syncCustomGrouping(targetID, o.ID, role, false)
+	}
 	return nil
 }
 

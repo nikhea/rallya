@@ -63,6 +63,37 @@ type Member struct {
 	JoinedAt      string `json:"joinedAt" example:"2026-09-19T12:00:00Z"`
 }
 
+// RolePermission is one grant in a custom role.
+type RolePermission struct {
+	Object string `json:"object" example:"checkin"`
+	Action string `json:"action" example:"create"`
+}
+
+// CustomRole is the public custom-role shape.
+type CustomRole struct {
+	ID          string           `json:"id" example:"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"`
+	Name        string           `json:"name" example:"door"`
+	Permissions []RolePermission `json:"permissions"`
+	Holders     int64            `json:"holders" example:"3"`
+	CreatedAt   string           `json:"createdAt" example:"2026-09-19T12:00:00Z"`
+}
+
+// DefineRole is POST /api/v1/orgs/:id/roles.
+type DefineRole struct {
+	Name        string           `json:"name" binding:"required" example:"door"`
+	Permissions []RolePermission `json:"permissions" binding:"required,min=1"`
+}
+
+// UpdateRolePermissions is PATCH /api/v1/orgs/:id/roles/:role.
+type UpdateRolePermissions struct {
+	Permissions []RolePermission `json:"permissions" binding:"required,min=1"`
+}
+
+// RoleAssignment carries the target member for assign/unassign.
+type RoleAssignment struct {
+	UserID string `json:"userId" binding:"required,uuid" example:"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"`
+}
+
 // Invite is the public pending-invite shape (no token hash).
 type Invite struct {
 	ID        string `json:"id" example:"3c4d5e6f-7081-9a0b-1c2d-3e4f5a6b7c8d"`
