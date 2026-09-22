@@ -1,0 +1,70 @@
+# Rallya local stack: Postgres + schema migration + API.
+#
+# Boot order is the release order (see cmd/AGENTS.md):
+#   db -> migrate (golang-migrate app tables, then rivermigrate queue tables)
+#          -> api (never migrates on boot, dev or prod).
+#
+# Usage:
+#   cp .env.example .env   # then fill secrets; .env is gitignored, never committed
+#   docker compose up --build
+#   curl localhost:8080/health
+#   docker compose down -v  # full reset (drops pgdata)
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: rallya
+      POSTGRES_PASSWORD: rallya
+      POSTGRES_DB: rallya
+    ports:
+      # Host Postgres often owns 5432 — default to 5433 locally.
+      # Override with DB_PORT=5432 (or empty the mapping) as needed.
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rallya -d rallya"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build: .
+    command: ["/out/migrate", "up"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://rallya:rallya@db:5432/rallya?sslmode=disable
+    restart: "no"
+
+  api:
+    build: .
+    command: ["/out/api"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    environment:
+      # ${VAR:-default}: a .env file in this dir auto-feeds interpolation,
+      # so real secrets override these local-dev defaults without editing
+      # this file. Local-dev secrets are clearly-marked placeholders, 32+
+      # bytes so the fail-closed checks pass.
+      APP_PORT: ${APP_PORT:-8080}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      # Always the compose-network address — NOT ${DATABASE_URL}: the repo
+      # .env (auto-loaded for interpolation) holds a host-oriented URL for
+      # `go run ./cmd/api`. Point elsewhere by editing this line.
+      DATABASE_URL: postgres://rallya:rallya@db:5432/rallya?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-jwt-secret-32-bytes-min}
+      QR_SIGNING_SECRET: ${QR_SIGNING_SECRET:-local-dev-only-qr-secret-32-bytes-minn}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      SUPERADMIN_EMAILS: ${SUPERADMIN_EMAILS:-}
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  pgdata:
