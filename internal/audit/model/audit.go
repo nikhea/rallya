@@ -23,6 +23,7 @@ const (
 	ObjectCheckinLog = "checkin_log"
 	ObjectPolicy     = "policy"
 	ObjectUser       = "user"
+	ObjectRole       = "role"
 )
 
 // AuditEvent is one recorded action. OrgID NULL = platform scope;

@@ -13,7 +13,10 @@ logic — a gated reader over org/auth/order repositories plus the emitter.
   shapes live in `dto/` (`admindto` — swag fails on duplicate package names).
 - New repo needs go in the OWNING domain (`ListOrgs`, `SearchUsers`
   precedent) — never query another domain's table from here.
-- Repair triggers are a separate slice (do not freeload mutations here).
+- Repair triggers (`policies/reseed`, `policies/sync`) return
+  `{added, removed, total}` diffs and audit their `admin.*` entries.
+  Reseed relies on per-row additive seeding (never bulk `AddPolicies` —
+  it cannot heal partial drift).
 
 ## Tests
 

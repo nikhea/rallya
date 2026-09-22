@@ -1,6 +1,7 @@
 # AGENTS.md — Organization domain (`internal/organization/`)
 
-Tenants: orgs, fixed-role memberships (`OWNER > ADMIN > MEMBER`), invites.
+Tenants: orgs, fixed-role memberships (`OWNER > ADMIN > MEMBER`), invites,
+plus per-org custom roles.
 Consumes auth via `auth.UserReader` only. IAM implements this domain's
 `GroupSyncer` + `PolicySeeder` (declared in `service/`, never import iam).
 
@@ -21,10 +22,18 @@ Consumes auth via `auth.UserReader` only. IAM implements this domain's
   back the event domain's `OrgResolver`.
 - Membership mutations sync groupings post-commit (best-effort + loud log;
   `SyncUserPolicies` repairs). Org create/delete seeds/removes Casbin policies.
+- Custom roles (`roles.go`, `000019`): grants-only sets unioned with the
+  fixed role; slug names, fixed names reserved, 20/org cap, delete 409s
+  while assigned. Lifecycle OWNER-only (service `requireRole`; Casbin gates
+  use actions only the OWNER wildcard passes — the UpdateMemberRole trick).
+  Enforcement rows materialize post-commit (the adapter can't join the PG
+  tx); reseed heals. Vocabulary pinned to IAM matrices by
+  `TestRoleRegistryMatchesIAM`. Member removal strips customs in-tx.
 - `MemberView`/`OrgDetail` style shapes are banned outside `dto/` — services
   return `orgdto` types directly (private mappers stay in service).
 
 ## Tests
 
 `go test ./internal/organization/... -count=1` — guards matrix, last-owner,
-invite lifecycle, HTTP suite on the real auth stack (shared SQLite).
+invite lifecycle, role guards/union/strip, HTTP suite on the real auth stack
+(shared SQLite).

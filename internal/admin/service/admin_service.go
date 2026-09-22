@@ -1,7 +1,9 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/casbin/casbin/v3"
@@ -218,4 +220,202 @@ func toOrderDTO(o *ordermodel.Order) *orderdto.Order {
 
 func isNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+// rolePermissionWire mirrors the stored permission JSON.
+type rolePermissionWire struct {
+	Object string `json:"object"`
+	Action string `json:"action"`
+}
+
+// rematerializeCustomRoles rebuilds an org's custom p-rows from its
+// definitions (additive) and sweeps orphan custom rows (no definition).
+// Returns the orphan-sweep count.
+func (s *AdminService) rematerializeCustomRoles(orgID uuid.UUID) (int, error) {
+	defs, err := s.orgs.ListRoleDefs(orgID)
+	if err != nil {
+		return 0, err
+	}
+	defined := map[string]bool{}
+	for _, d := range defs {
+		defined[d.Name] = true
+		var perms []rolePermissionWire
+		if err := json.Unmarshal([]byte(d.Permissions), &perms); err != nil {
+			return 0, err
+		}
+		mapped := make([]iam.Permission, 0, len(perms))
+		for _, p := range perms {
+			mapped = append(mapped, iam.Permission{Obj: p.Object, Act: p.Action})
+		}
+		if _, err := iam.EnsureCustomRolePolicies(s.enforce, orgID, d.Name, mapped); err != nil {
+			return 0, err
+		}
+	}
+	live, err := iam.ListCustomRolePolicies(s.enforce, orgID)
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	for role := range live {
+		if defined[role] {
+			continue
+		}
+		n, err := iam.RemoveCustomRolePolicies(s.enforce, orgID, role)
+		if err != nil {
+			return 0, err
+		}
+		removed += n
+	}
+	return removed, nil
+}
+
+// PolicyDiff is the idempotent-repair report.
+type PolicyDiff struct {
+	Added   int
+	Removed int
+	Total   int
+}
+
+// ReseedOrgPolicies re-runs the org policy seed (adds missing rows; never
+// removes) and reports the diff. Repairs drifted Casbin rows without DB
+// surgery. Custom roles rebuild from their definitions; orphan custom rows
+// (no definition) are swept.
+func (s *AdminService) ReseedOrgPolicies(actorID, orgID uuid.UUID) (*PolicyDiff, error) {
+	if _, err := s.orgs.GetOrgByID(orgID); err != nil {
+		if isNotFound(err) {
+			return nil, ErrOrgNotFound
+		}
+		return nil, err
+	}
+	before, err := iam.CountOrgPolicies(s.enforce, orgID)
+	if err != nil {
+		return nil, err
+	}
+	if err := iam.SeedOrgPolicies(s.enforce, orgID); err != nil {
+		return nil, err
+	}
+	removed, err := s.rematerializeCustomRoles(orgID)
+	if err != nil {
+		return nil, err
+	}
+	after, err := iam.CountOrgPolicies(s.enforce, orgID)
+	if err != nil {
+		return nil, err
+	}
+	diff := &PolicyDiff{Added: after - before, Removed: removed, Total: after}
+	if err := s.emit(actorID, &orgID, "admin.policies_reseeded", auditmodel.ObjectPolicy, &orgID); err != nil {
+		return nil, err
+	}
+	return diff, nil
+}
+
+// SyncUserPolicies converges a user's groupings to membership truth:
+// every membership gets its grouping (sweep-then-add), and groupings for
+// orgs with no membership are swept. Superadmin g2 rows are untouched.
+func (s *AdminService) SyncUserPolicies(actorID, userID uuid.UUID) (*PolicyDiff, error) {
+	if _, err := s.users.GetUserByID(userID); err != nil {
+		if isNotFound(err) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	before, err := groupingSet(s.enforce, userID)
+	if err != nil {
+		return nil, err
+	}
+	ms, err := s.orgs.ListUserMemberships(userID)
+	if err != nil {
+		return nil, err
+	}
+	syncer := iam.NewMembershipSyncer(s.enforce)
+	keep := map[string]bool{}
+	for _, m := range ms {
+		if err := syncer.SyncMembership(userID, m.OrganizationID, &m.Role); err != nil {
+			return nil, err
+		}
+		keep[m.OrganizationID.String()] = true
+		customs, err := s.orgs.ListUserCustomRoles(nil, m.OrganizationID, userID)
+		if err != nil {
+			return nil, err
+		}
+		for _, role := range customs {
+			if err := syncer.SyncCustomGrouping(userID, m.OrganizationID, role, true); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for key := range before {
+		role, orgRef := splitGroupingKey(key)
+		if keep[orgRef] {
+			continue
+		}
+		orgID, err := uuid.Parse(orgRef)
+		if err != nil {
+			continue
+		}
+		if isCustomRoleName(role) {
+			if err := syncer.SyncCustomGrouping(userID, orgID, role, false); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if err := syncer.SyncMembership(userID, orgID, nil); err != nil {
+			return nil, err
+		}
+	}
+	after, err := groupingSet(s.enforce, userID)
+	if err != nil {
+		return nil, err
+	}
+	added, removed := 0, 0
+	for k := range after {
+		if !before[k] {
+			added++
+		}
+	}
+	for k := range before {
+		if !after[k] {
+			removed++
+		}
+	}
+	diff := &PolicyDiff{Added: added, Removed: removed, Total: len(after)}
+	if err := s.emit(actorID, nil, "admin.policies_synced", auditmodel.ObjectUser, &userID); err != nil {
+		return nil, err
+	}
+	return diff, nil
+}
+
+// groupingSet snapshots a user's 3-field groupings as role@org strings
+// (g2 superadmin rows excluded — never membership state).
+func groupingSet(e *casbin.Enforcer, userID uuid.UUID) (map[string]bool, error) {
+	rows, err := iam.UserGroupings(e, userID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for _, row := range rows {
+		if len(row) == 3 {
+			out[row[1]+"@"+row[2]] = true
+		}
+	}
+	return out, nil
+}
+
+// splitGroupingKey splits a role@org snapshot key.
+func splitGroupingKey(key string) (role, org string) {
+	if i := strings.Index(key, "@"); i >= 0 {
+		return key[:i], key[i+1:]
+	}
+	return key, ""
+}
+
+// isCustomRoleName reports non-fixed role values (fixed names can never be
+// custom definitions — reserved at creation).
+func isCustomRoleName(role string) bool {
+	switch role {
+	case "OWNER", "ADMIN", "MEMBER":
+		return false
+	default:
+		return true
+	}
 }

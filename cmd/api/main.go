@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverdatabasesql"
@@ -55,6 +56,7 @@ import (
 	payment "github.com/nikhea/rallya/internal/payment"
 	paymenthandler "github.com/nikhea/rallya/internal/payment/handler"
 	paymentservice "github.com/nikhea/rallya/internal/payment/service"
+	"github.com/nikhea/rallya/internal/ratelimit"
 	ticketing "github.com/nikhea/rallya/internal/ticketing"
 	tickethandler "github.com/nikhea/rallya/internal/ticketing/handler"
 	ticketrepository "github.com/nikhea/rallya/internal/ticketing/repository"
@@ -119,6 +121,46 @@ func main() {
 
 	router := gin.Default()
 
+	// Trust explicit proxies so rate limiting keys on real client IPs.
+	// Unset = RemoteAddr only (secure default).
+	if proxies := config.TrustedProxies(); len(proxies) > 0 {
+		if err := router.SetTrustedProxies(proxies); err != nil {
+			slog.Error("bad TRUSTED_PROXIES, using RemoteAddr", "error", err)
+		}
+	}
+
+	// CORS: origins strictly from CORS_ALLOWED_ORIGINS (no default —
+	// empty fails closed). Wildcard "*" serves without credentials;
+	// explicit origins echo back with credentials.
+	origins := config.AllowedOrigins()
+	if len(origins) == 0 {
+		// No middleware at all: browsers block cross-origin by default.
+		slog.Warn("CORS_ALLOWED_ORIGINS unset: cross-origin requests denied")
+	} else {
+		corsCfg := cors.DefaultConfig()
+		corsCfg.AllowMethods = []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"}
+		corsCfg.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
+		corsCfg.MaxAge = 12 * time.Hour
+		if len(origins) == 1 && origins[0] == "*" {
+			corsCfg.AllowAllOrigins = true
+		} else {
+			corsCfg.AllowOrigins = origins
+			corsCfg.AllowCredentials = true
+		}
+		router.Use(cors.New(corsCfg))
+	}
+
+	// Rate limiting: Redis-shared when connected, in-process otherwise.
+	// Strict tier guards brute-forceable auth endpoints; default tier is
+	// generous (abuse-shaped traffic gets lower tiers + login telemetry).
+	limiterStore := ratelimit.Store(ratelimit.NewMemoryStore())
+	if config.RDB != nil {
+		limiterStore = ratelimit.NewRedisStore(config.RDB)
+		slog.Info("Rate limit store: Redis")
+	} else {
+		slog.Info("Rate limit store: memory (single instance)")
+	}
+
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	router.GET("/health", func(c *gin.Context) {
@@ -129,13 +171,16 @@ func main() {
 	})
 
 	api := router.Group("/api/v1")
+	api.Use(ratelimit.Limit(limiterStore, "default", config.APIPerMin()))
 	{
 		api.GET("/hello", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"message": "Welcome to Rallya",
 			})
 		})
-		auth.RegisterRoutes(api.Group("/auth"), authHandler, authRepo)
+		authGroup := api.Group("/auth")
+		authGroup.Use(ratelimit.Limit(limiterStore, "auth", config.AuthPerMin()))
+		auth.RegisterRoutes(authGroup, authHandler, authRepo)
 
 		// IAM (Casbin): enforcer over the shared handle; policies seeded
 		// per-org by the organization domain, superadmins from env.

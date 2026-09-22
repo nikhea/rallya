@@ -255,6 +255,72 @@ func (h *Handler) ListUserOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, orderdto.OrdersPage{Items: orders, Total: total})
 }
 
+// ReseedOrgPolicies POST /api/v1/admin/orgs/:id/policies/reseed (superadmin).
+//
+// @Summary		Repair org Casbin rows
+// @Description	Idempotent re-seed; returns what changed. Audited.
+// @Tags			admin
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id	path		string	true	"Org UUID"
+// @Success		200	{object}	admindto.PolicyDiff
+// @Failure		400	{object}	admindto.ErrorAlias
+// @Failure		401	{object}	admindto.ErrorAlias
+// @Failure		403	{object}	admindto.ErrorAlias
+// @Failure		404	{object}	admindto.ErrorAlias
+// @Router			/admin/orgs/{id}/policies/reseed [post]
+func (h *Handler) ReseedOrgPolicies(c *gin.Context) {
+	actor, ok := actorOf(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	orgID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid org id"})
+		return
+	}
+	diff, err := h.svc.ReseedOrgPolicies(actor, orgID)
+	if err != nil {
+		c.JSON(adminErrorStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, admindto.PolicyDiff{Added: diff.Added, Removed: diff.Removed, Total: diff.Total})
+}
+
+// SyncUserPolicies POST /api/v1/admin/users/:id/policies/sync (superadmin).
+//
+// @Summary		Converge user groupings to memberships
+// @Description	Sweep-then-add per org; stale orgs swept; g2 untouched. Audited.
+// @Tags			admin
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id	path		string	true	"User UUID"
+// @Success		200	{object}	admindto.PolicyDiff
+// @Failure		400	{object}	admindto.ErrorAlias
+// @Failure		401	{object}	admindto.ErrorAlias
+// @Failure		403	{object}	admindto.ErrorAlias
+// @Failure		404	{object}	admindto.ErrorAlias
+// @Router			/admin/users/{id}/policies/sync [post]
+func (h *Handler) SyncUserPolicies(c *gin.Context) {
+	actor, ok := actorOf(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+	diff, err := h.svc.SyncUserPolicies(actor, userID)
+	if err != nil {
+		c.JSON(adminErrorStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, admindto.PolicyDiff{Added: diff.Added, Removed: diff.Removed, Total: diff.Total})
+}
+
 func toUserSummary(u *authmodel.User, superAdmin bool) admindto.UserSummary {
 	return admindto.UserSummary{
 		ID: u.ID.String(), Email: u.Email, Name: orgutils.DisplayNameOf(u),

@@ -379,6 +379,28 @@ func (s *OrgService) sync(userID, orgID uuid.UUID, role *orgmodel.MemberRole) {
 	}
 }
 
+// syncCustomGrouping propagates one custom grant/revoke. Best-effort
+// post-commit like sync (the adapter can't join the PG tx).
+func (s *OrgService) syncCustomGrouping(userID, orgID uuid.UUID, role string, grant bool) {
+	if s.syncer == nil {
+		return
+	}
+	if err := s.syncer.SyncCustomGrouping(userID, orgID, role, grant); err != nil {
+		slog.Error("iam custom grouping sync failed", "user", userID, "org", orgID, "role", role, "error", err)
+	}
+}
+
+// syncCustomPolicies materializes/revokes one role's p-rows. Best-effort
+// post-commit; the admin reseed heals gaps.
+func (s *OrgService) syncCustomPolicies(orgID uuid.UUID, role string, perms []RolePermission, remove bool) {
+	if s.syncer == nil {
+		return
+	}
+	if err := s.syncer.SyncCustomPolicies(orgID, role, perms, remove); err != nil {
+		slog.Error("iam custom policy sync failed", "org", orgID, "role", role, "error", err)
+	}
+}
+
 // SyncUserPolicies repairs derived IAM state for a user (admin escape hatch).
 func (s *OrgService) SyncUserPolicies(userID uuid.UUID) error {
 	if s.syncer == nil {

@@ -77,3 +77,10 @@ type ErrorResponse struct {
 
 // ErrorAlias names ErrorResponse for swagger annotations.
 type ErrorAlias = ErrorResponse
+
+// PolicyDiff is the idempotent-repair report.
+type PolicyDiff struct {
+	Added   int `json:"added" example:"2"`
+	Removed int `json:"removed" example:"1"`
+	Total   int `json:"total" example:"27"`
+}

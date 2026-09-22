@@ -10,9 +10,9 @@ import (
 	"github.com/nikhea/rallya/internal/iam"
 )
 
-// RegisterRoutes wires the platform reads. Everything here is superadmin
-// only — tenant gates never apply; the audit trail on each read is the
-// control. Repair triggers land as a follow-up slice.
+// RegisterRoutes wires the platform reads plus the repair triggers.
+// Everything here is superadmin only — tenant gates never apply; the audit
+// trail on each call is the control.
 func RegisterRoutes(
 	api *gin.RouterGroup,
 	h *handler.Handler,
@@ -25,8 +25,10 @@ func RegisterRoutes(
 	{
 		admin.GET("/orgs", h.ListOrgs)
 		admin.GET("/orgs/:id", h.GetOrg)
+		admin.POST("/orgs/:id/policies/reseed", h.ReseedOrgPolicies)
 		admin.GET("/users", h.SearchUsers)
 		admin.GET("/users/:id", h.GetUser)
 		admin.GET("/users/:id/orders", h.ListUserOrders)
+		admin.POST("/users/:id/policies/sync", h.SyncUserPolicies)
 	}
 }
