@@ -33,6 +33,7 @@ import (
 	"github.com/nikhea/rallya/internal/auth/handler"
 	"github.com/nikhea/rallya/internal/auth/repository"
 	"github.com/nikhea/rallya/internal/auth/service"
+	"github.com/nikhea/rallya/internal/cache"
 	checkin "github.com/nikhea/rallya/internal/checkin"
 	checkinhandler "github.com/nikhea/rallya/internal/checkin/handler"
 	checkinrepository "github.com/nikhea/rallya/internal/checkin/repository"
@@ -216,6 +217,8 @@ func main() {
 		eventSvc := eventservice.NewEventService(eventRepo, orgSvc)
 		eventSvc.SetEnqueuer(jobs.NewRiverEnqueuer(riverClient, jobs.EmailQueue))
 		eventSvc.SetAuditEmitter(auditSvc)
+		// Public detail cache (nil-client disables: reads fall to Postgres).
+		eventSvc.SetDetailCache(cache.New(config.RDB))
 		if cld, err := cover.NewCloudinary(); err != nil {
 			slog.Warn("Cloudinary unconfigured, covers stay on local disk", "error", err)
 			eventSvc.SetCoverStorage(cover.NewLocal("./uploads"))

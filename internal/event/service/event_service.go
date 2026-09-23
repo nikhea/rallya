@@ -56,6 +56,27 @@ type CoverStorage interface {
 	Delete(url string) error
 }
 
+// DetailCache is a cache-aside store for public event payloads.
+// Declared by this consumer; implemented by internal/cache (wired in
+// cmd/api). Nil-safe when unwired: reads fall through to Postgres and
+// purges are no-ops, so tests and Redis-less boots behave identically.
+type DetailCache interface {
+	Get(ctx context.Context, key string, dst any) (bool, error)
+	Set(ctx context.Context, key string, val any, ttl time.Duration) error
+	Del(ctx context.Context, keys ...string) error
+}
+
+// publicEventTTL bounds worst-case staleness after a write whose purge
+// raced or failed (purges run post-commit, log on error, fail open).
+const publicEventTTL = time.Minute
+
+// publicEventKey namespaces cached public payloads by event ID. Only
+// published payloads are stored (drafts 404 outsiders, so a shared key
+// can never leak them).
+func publicEventKey(id uuid.UUID) string {
+	return "evt:pub:" + id.String()
+}
+
 // EventService orchestrates event flows.
 type EventService struct {
 	repo     *repository.EventRepository
@@ -63,6 +84,7 @@ type EventService struct {
 	enqueuer jobs.Enqueuer
 	storage  CoverStorage
 	auditor  auditsvc.Emitter
+	dcache   DetailCache
 }
 
 // NewEventService builds the service. orgs is required; enqueuer/storage
@@ -79,6 +101,9 @@ func (s *EventService) SetCoverStorage(c CoverStorage) { s.storage = c }
 
 // SetAuditEmitter wires audit-trail emission (nil-safe when absent).
 func (s *EventService) SetAuditEmitter(a auditsvc.Emitter) { s.auditor = a }
+
+// SetDetailCache wires the public-detail cache (nil-safe when absent).
+func (s *EventService) SetDetailCache(c DetailCache) { s.dcache = c }
 
 // emit records one audit entry (nil-safe when unwired). Call inside the
 // action's tx so entry and mutation commit atomically.
@@ -193,7 +218,19 @@ func (s *EventService) GetEvent(callerID *uuid.UUID, orgRef, eventRef string) (*
 }
 
 // GetPublicEvent returns a published event by ID (no org context).
+// Cache-aside on the published payload: hits skip Postgres, misses
+// populate. Drafts 404 and are never stored. Cache failures fail open
+// (warn + fall through) — a cache outage must not break reads.
 func (s *EventService) GetPublicEvent(id uuid.UUID) (*eventdto.Event, error) {
+	if s.dcache != nil {
+		var cached eventdto.Event
+		hit, err := s.dcache.Get(context.Background(), publicEventKey(id), &cached)
+		if err != nil {
+			slog.Warn("event detail cache read failed, falling through", "eventID", id, "error", err)
+		} else if hit {
+			return &cached, nil
+		}
+	}
 	e, err := s.repo.GetEventByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -204,7 +241,13 @@ func (s *EventService) GetPublicEvent(id uuid.UUID) (*eventdto.Event, error) {
 	if !e.Published() {
 		return nil, ErrEventNotFound
 	}
-	return toEvent(e), nil
+	out := toEvent(e)
+	if s.dcache != nil {
+		if err := s.dcache.Set(context.Background(), publicEventKey(id), out, publicEventTTL); err != nil {
+			slog.Warn("event detail cache write failed", "eventID", id, "error", err)
+		}
+	}
+	return out, nil
 }
 
 // ListPublic lists published events (filters + sort + pagination).
@@ -355,11 +398,13 @@ func (s *EventService) UpdateEvent(actorID uuid.UUID, orgRef, eventRef string, i
 		if old != "" {
 			s.deleteCover(old)
 		}
+		s.purgePublicEvent(e.ID)
 		return toEvent(e), nil
 	}
 	if err := s.saveWithAudit(actorID, orgID, e, before); err != nil {
 		return nil, err
 	}
+	s.purgePublicEvent(e.ID)
 	return toEvent(e), nil
 }
 
@@ -456,6 +501,7 @@ func (s *EventService) Publish(actorID uuid.UUID, orgRef, eventRef string) (*eve
 	}); err != nil {
 		return nil, err
 	}
+	s.purgePublicEvent(e.ID)
 	return toEvent(e), nil
 }
 
@@ -499,6 +545,7 @@ func (s *EventService) transition(actorID uuid.UUID, orgRef, eventRef string, fr
 	}); err != nil {
 		return nil, err
 	}
+	s.purgePublicEvent(e.ID)
 	return toEvent(e), nil
 }
 
@@ -534,6 +581,7 @@ func (s *EventService) DeleteEvent(actorID uuid.UUID, orgRef, eventRef string) e
 	}); err != nil {
 		return err
 	}
+	s.purgePublicEvent(e.ID)
 	for _, url := range assets {
 		s.deleteCover(url)
 	}
@@ -611,6 +659,11 @@ func (s *EventService) AddGalleryImages(orgRef, eventRef string, uploads []Galle
 	if err != nil {
 		s.cleanupStaged(stagedUploads)
 		return nil, err
+	}
+	// Gallery rows are not in the detail payload — but a cloned cover is,
+	// so only that case purges.
+	if coverCloned {
+		s.purgePublicEvent(e.ID)
 	}
 	out := make([]eventdto.EventImage, 0, len(rows))
 	for _, r := range rows {
@@ -736,6 +789,7 @@ func (s *EventService) SetCover(orgRef, eventRef string, data io.Reader, size in
 	if old != "" && old != url {
 		s.deleteCover(old)
 	}
+	s.purgePublicEvent(e.ID)
 	return toEvent(e), nil
 }
 
@@ -842,6 +896,19 @@ func (s *EventService) deleteCover(url string) {
 	}
 	if err := s.storage.Delete(url); err != nil {
 		slog.Warn("cover delete failed", "url", url, "error", err)
+	}
+}
+
+// purgePublicEvent drops the cached public payload after a committed
+// write. Best-effort post-commit: failures log and self-heal via
+// publicEventTTL. Called for every mutation that can change what
+// GetPublicEvent serves (create needs none — drafts are never cached).
+func (s *EventService) purgePublicEvent(id uuid.UUID) {
+	if s.dcache == nil {
+		return
+	}
+	if err := s.dcache.Del(context.Background(), publicEventKey(id)); err != nil {
+		slog.Warn("event detail cache purge failed", "eventID", id, "error", err)
 	}
 }
 
