@@ -1,14 +1,16 @@
-# Rallya local stack: Postgres + schema migration + API.
+# Rallya local stack: Postgres + Redis + schema migration + API.
 #
 # Boot order is the release order (see cmd/AGENTS.md):
-#   db -> migrate (golang-migrate app tables, then rivermigrate queue tables)
-#          -> api (never migrates on boot, dev or prod).
+#   db + redis -> migrate (golang-migrate app tables, then rivermigrate queue tables)
+#               -> api (never migrates on boot, dev or prod).
+# Redis backs the shared rate limiter (cmd/api/main.go); without it the API
+# still boots on the in-process memory store.
 #
 # Usage:
 #   cp .env.example .env   # then fill secrets; .env is gitignored, never committed
 #   docker compose up --build
 #   curl localhost:8080/health
-#   docker compose down -v  # full reset (drops pgdata)
+#   docker compose down -v  # full reset (drops pgdata + redisdata)
 
 services:
   db:
@@ -39,12 +41,28 @@ services:
       DATABASE_URL: postgres://rallya:rallya@db:5432/rallya?sslmode=disable
     restart: "no"
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    # No published port: the API reaches it over the compose network, and
+    # this avoids clashing with a host Redis on 6379. Inspect with
+    # `docker compose exec redis redis-cli`.
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build: .
     command: ["/out/api"]
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
@@ -62,9 +80,14 @@ services:
       QR_SIGNING_SECRET: ${QR_SIGNING_SECRET:-local-dev-only-qr-secret-32-bytes-minn}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       SUPERADMIN_EMAILS: ${SUPERADMIN_EMAILS:-}
+      # Same rule as DATABASE_URL: always the compose-network address, since
+      # the repo .env holds host-oriented values for `go run ./cmd/api`.
+      # Feeds the shared rate limiter (memory store is the fallback).
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - ./uploads:/app/uploads
     restart: unless-stopped
 
 volumes:
   pgdata:
+  redisdata:
