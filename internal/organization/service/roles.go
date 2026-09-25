@@ -40,6 +40,7 @@ var roleRegistry = map[string]map[string]bool{
 	"checkin":  {"read": true, "create": true, "update": true},
 	"audit":    {"read": true},
 	"role":     {"read": true, "create": true, "update": true, "delete": true},
+	"apikey":   {"read": true, "create": true, "delete": true},
 }
 
 // reservedRoleNames can never be custom definitions (enforcement collision).

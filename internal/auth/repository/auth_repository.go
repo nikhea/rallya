@@ -184,6 +184,60 @@ func (r *AuthRepository) RevokeAllUserTokens(db *gorm.DB, userID uuid.UUID, at t
 		).Update("revoked_at", at).Error
 }
 
+// ---------- api keys ----------
+
+// CreateApiKey inserts a hashed org API key row.
+func (r *AuthRepository) CreateApiKey(db *gorm.DB, k *model.ApiKey) error {
+	return dbOr(r, db).Create(k).Error
+}
+
+// GetApiKeyByHash loads a key row by its SHA-256 hash.
+func (r *AuthRepository) GetApiKeyByHash(hash string) (*model.ApiKey, error) {
+	var k model.ApiKey
+	if err := r.db.First(&k, "key_hash = ?", hash).Error; err != nil {
+		return nil, err
+	}
+	return &k, nil
+}
+
+// GetApiKeyByID loads a key row by id.
+func (r *AuthRepository) GetApiKeyByID(id uuid.UUID) (*model.ApiKey, error) {
+	var k model.ApiKey
+	if err := r.db.First(&k, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &k, nil
+}
+
+// ListApiKeysByOrg returns keys for an org, newest first (hashes excluded
+// by the caller's DTO mapping; raw secrets are never stored).
+func (r *AuthRepository) ListApiKeysByOrg(orgID uuid.UUID, limit, offset int) ([]model.ApiKey, int64, error) {
+	var out []model.ApiKey
+	var total int64
+	q := r.db.Model(&model.ApiKey{}).Where("org_id = ?", orgID)
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&out).Error; err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+// RevokeApiKey soft-revokes a key (idempotent; row kept for audit).
+func (r *AuthRepository) RevokeApiKey(db *gorm.DB, id uuid.UUID, at time.Time) error {
+	return dbOr(r, db).Model(&model.ApiKey{}).
+		Where("id = ? AND revoked_at IS NULL", id).
+		Update("revoked_at", at).Error
+}
+
+// TouchApiKeyLastUsed stamps last_used_at (best-effort; caller ignores errors).
+func (r *AuthRepository) TouchApiKeyLastUsed(id uuid.UUID, at time.Time) error {
+	return r.db.Model(&model.ApiKey{}).
+		Where("id = ?", id).
+		Update("last_used_at", at).Error
+}
+
 // ---------- email verifications ----------
 
 // CreateEmailVerification inserts a verification row.

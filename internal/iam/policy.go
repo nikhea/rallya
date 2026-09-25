@@ -22,6 +22,7 @@ const (
 	ObjCheckin  = "checkin"
 	ObjAudit    = "audit"
 	ObjRole     = "role"
+	ObjApikey   = "apikey"
 
 	ActRead    = "read"
 	ActCreate  = "create"
@@ -68,6 +69,9 @@ func AdminPermissions() []Permission {
 		{ObjCheckin, ActUpdate},
 		{ObjAudit, ActRead},
 		{ObjRole, ActRead},
+		{ObjApikey, ActRead},
+		{ObjApikey, ActCreate},
+		{ObjApikey, ActDelete},
 	}
 }
 
