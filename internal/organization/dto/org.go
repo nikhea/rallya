@@ -103,6 +103,38 @@ type Invite struct {
 	CreatedAt string `json:"createdAt" example:"2026-09-19T12:00:00Z"`
 }
 
+// CreateApiKey is POST /api/v1/orgs/:id/api-keys.
+type CreateApiKey struct {
+	Name      string   `json:"name" binding:"required,min=1,max=100" example:"door-tablet-1"`
+	Scopes    []string `json:"scopes" binding:"omitempty,dive,min=1,max=64" example:"checkin:create"`
+	ExpiresAt *string  `json:"expiresAt" binding:"omitempty,datetime=2006-01-02T15:04:05Z07:00" example:"2027-01-01T00:00:00Z"`
+}
+
+// ApiKey is the public key shape (hash/raw never exposed).
+type ApiKey struct {
+	ID         string   `json:"id" example:"3c4d5e6f-7081-9a0b-1c2d-3e4f5a6b7c8d"`
+	Name       string   `json:"name" example:"door-tablet-1"`
+	Prefix     string   `json:"prefix" example:"rk_live_ab12cd34"`
+	Scopes     []string `json:"scopes" example:"checkin:create"`
+	ExpiresAt  *string  `json:"expiresAt,omitempty" example:"2027-01-01T00:00:00Z"`
+	LastUsedAt *string  `json:"lastUsedAt,omitempty" example:"2026-09-20T12:00:00Z"`
+	RevokedAt  *string  `json:"revokedAt,omitempty" example:"2026-09-21T12:00:00Z"`
+	CreatedBy  string   `json:"createdBy" example:"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"`
+	CreatedAt  string   `json:"createdAt" example:"2026-09-19T12:00:00Z"`
+}
+
+// ApiKeyCreated returns the raw secret once (never stored, never re-read).
+type ApiKeyCreated struct {
+	ApiKey
+	Key string `json:"key" example:"rk_live_abc123..."`
+}
+
+// ApiKeysPage lists keys with a total.
+type ApiKeysPage struct {
+	Items []ApiKey `json:"items"`
+	Total int64    `json:"total" example:"2"`
+}
+
 // MemberNotify is one announcement recipient (internal read shape).
 type MemberNotify struct {
 	UserID uuid.UUID

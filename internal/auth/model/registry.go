@@ -15,5 +15,6 @@ func AllModels() []any {
 		&OAuthAccount{},
 		&MFAFactor{},
 		&LoginAttempt{},
+		&ApiKey{},
 	}
 }

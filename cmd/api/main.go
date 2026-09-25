@@ -209,6 +209,7 @@ func main() {
 		orgSvc.SetGroupSyncer(iam.NewMembershipSyncer(enforcer))
 		orgSvc.SetPolicySeeder(iam.NewOrgPolicySeeder(enforcer))
 		orgSvc.SetAuditEmitter(auditSvc)
+		orgSvc.SetApiKeyStore(authRepo)
 		orgHandler := orghandler.NewHandler(orgSvc)
 		organization.RegisterRoutes(api.Group("/orgs"), orgHandler, orgRepo, authRepo, enforcer)
 

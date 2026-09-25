@@ -39,6 +39,9 @@ import (
 //	DELETE /api/v1/orgs/:id/roles/:role (role,delete — OWNER-only, same trick)
 //	POST /api/v1/orgs/:id/roles/:role/assign   (role,update — OWNER-only)
 //	POST /api/v1/orgs/:id/roles/:role/unassign (role,update — OWNER-only)
+//	POST /api/v1/orgs/:id/api-keys            (apikey,create — ADMIN+)
+//	GET  /api/v1/orgs/:id/api-keys            (apikey,read — ADMIN+)
+//	DELETE /api/v1/orgs/:id/api-keys/:keyId   (apikey,delete — ADMIN+)
 //
 // :id accepts an org UUID or slug.
 func RegisterRoutes(g *gin.RouterGroup, h *handler.Handler, repo *repository.OrgRepository, authRepo *authrepo.AuthRepository, e *casbin.Enforcer) {
@@ -71,6 +74,10 @@ func RegisterRoutes(g *gin.RouterGroup, h *handler.Handler, repo *repository.Org
 		scoped.DELETE("/roles/:role", iam.RequirePermission(e, iam.ObjRole, iam.ActDelete), h.DeleteRole)
 		scoped.POST("/roles/:role/assign", iam.RequirePermission(e, iam.ObjRole, iam.ActUpdate), h.AssignRole)
 		scoped.POST("/roles/:role/unassign", iam.RequirePermission(e, iam.ObjRole, iam.ActUpdate), h.UnassignRole)
+
+		scoped.POST("/api-keys", iam.RequirePermission(e, iam.ObjApikey, iam.ActCreate), h.CreateApiKey)
+		scoped.GET("/api-keys", iam.RequirePermission(e, iam.ObjApikey, iam.ActRead), h.ListApiKeys)
+		scoped.DELETE("/api-keys/:keyId", iam.RequirePermission(e, iam.ObjApikey, iam.ActDelete), h.RevokeApiKey)
 
 		scoped.DELETE("", iam.RequirePermission(e, iam.ObjOrg, iam.ActDelete), h.DeleteOrg)
 	}

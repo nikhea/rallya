@@ -42,6 +42,7 @@ type OrgService struct {
 	seeder   PolicySeeder
 	cleaner  AssetCleaner
 	auditor  auditsvc.Emitter
+	apiKeys  ApiKeyStore
 }
 
 // NewOrgService builds the service. users is required; enqueuer/syncer/

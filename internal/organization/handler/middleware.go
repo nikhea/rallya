@@ -38,6 +38,13 @@ func RequireOrgContext(repo *repository.OrgRepository) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "organization not found"})
 			return
 		}
+		// API keys are bound to one org: cross-org use is a scope
+		// violation (403), not a stealth 404 — the caller is already
+		// authenticated, only the scope is wrong.
+		if keyOrgID, ok := authhandler.ApiKeyOrgIDFromContext(c); ok && keyOrgID != o.ID {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
 		c.Set(string(ctxOrgID), o.ID)
 		c.Set(string(ctxOrgRole), m.Role)
 		c.Next()

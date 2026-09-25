@@ -22,4 +22,8 @@ var (
 	ErrRoleCapReached         = errors.New("too many custom roles (max 20)")
 	ErrRoleAssigned           = errors.New("role is still assigned (unassign all holders first)")
 	ErrInvalidRolePermissions = errors.New("permissions must be known matrix pairs (grants only)")
+	ErrApiKeyNotFound         = errors.New("api key not found")
+	ErrInvalidApiKeyName      = errors.New("name is required (max 100 chars)")
+	ErrInvalidApiKeyScope     = errors.New("scopes must be known object:action pairs")
+	ErrInvalidApiKeyExpiry    = errors.New("expiresAt must be in the future")
 )
