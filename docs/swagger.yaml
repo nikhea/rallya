@@ -708,6 +708,119 @@ definitions:
         maxLength: 255
         type: string
     type: object
+  kitdto.CollectRequest:
+    properties:
+      attendeeId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      idempotencyKey:
+        example: kit-req-001
+        type: string
+      reserve:
+        example: false
+        type: boolean
+    type: object
+  kitdto.CollectionListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/kitdto.CollectionResponse'
+        type: array
+      total:
+        example: 40
+        type: integer
+    type: object
+  kitdto.CollectionResponse:
+    properties:
+      attendeeId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      collectedAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      collectedBy:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      createdAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      eventId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      kitId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      kitName:
+        example: VIP pack
+        type: string
+      status:
+        example: COLLECTED
+        type: string
+    type: object
+  kitdto.CreateKitRequest:
+    properties:
+      description:
+        example: Lanyard, shirt, stickers
+        type: string
+      name:
+        example: VIP pack
+        type: string
+      quantityTotal:
+        example: 100
+        type: integer
+    type: object
+  kitdto.ErrorAlias:
+    properties:
+      error:
+        example: kit not found
+        type: string
+    type: object
+  kitdto.KitResponse:
+    properties:
+      collected:
+        example: 40
+        type: integer
+      createdAt:
+        example: "2026-09-20T10:00:00Z"
+        type: string
+      description:
+        type: string
+      eventId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      name:
+        example: VIP pack
+        type: string
+      pending:
+        example: 5
+        type: integer
+      quantityTotal:
+        example: 100
+        type: integer
+      remaining:
+        example: 55
+        type: integer
+      voided:
+        example: 1
+        type: integer
+    type: object
+  kitdto.UpdateKitRequest:
+    properties:
+      description:
+        type: string
+      name:
+        example: VIP pack
+        type: string
+      quantityTotal:
+        example: 120
+        type: integer
+    type: object
   orderdto.CreateOrder:
     properties:
       idempotencyKey:
@@ -795,6 +908,104 @@ definitions:
         type: string
     required:
     - email
+    type: object
+  orgdto.ApiKey:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      createdBy:
+        example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+        type: string
+      expiresAt:
+        example: "2027-01-01T00:00:00Z"
+        type: string
+      id:
+        example: 3c4d5e6f-7081-9a0b-1c2d-3e4f5a6b7c8d
+        type: string
+      lastUsedAt:
+        example: "2026-09-20T12:00:00Z"
+        type: string
+      name:
+        example: door-tablet-1
+        type: string
+      prefix:
+        example: rk_live_ab12cd34
+        type: string
+      revokedAt:
+        example: "2026-09-21T12:00:00Z"
+        type: string
+      scopes:
+        example:
+        - checkin:create
+        items:
+          type: string
+        type: array
+    type: object
+  orgdto.ApiKeyCreated:
+    properties:
+      createdAt:
+        example: "2026-09-19T12:00:00Z"
+        type: string
+      createdBy:
+        example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+        type: string
+      expiresAt:
+        example: "2027-01-01T00:00:00Z"
+        type: string
+      id:
+        example: 3c4d5e6f-7081-9a0b-1c2d-3e4f5a6b7c8d
+        type: string
+      key:
+        example: rk_live_abc123...
+        type: string
+      lastUsedAt:
+        example: "2026-09-20T12:00:00Z"
+        type: string
+      name:
+        example: door-tablet-1
+        type: string
+      prefix:
+        example: rk_live_ab12cd34
+        type: string
+      revokedAt:
+        example: "2026-09-21T12:00:00Z"
+        type: string
+      scopes:
+        example:
+        - checkin:create
+        items:
+          type: string
+        type: array
+    type: object
+  orgdto.ApiKeysPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/orgdto.ApiKey'
+        type: array
+      total:
+        example: 2
+        type: integer
+    type: object
+  orgdto.CreateApiKey:
+    properties:
+      expiresAt:
+        example: "2027-01-01T00:00:00Z"
+        type: string
+      name:
+        example: door-tablet-1
+        maxLength: 100
+        minLength: 1
+        type: string
+      scopes:
+        example:
+        - checkin:create
+        items:
+          type: string
+        type: array
+    required:
+    - name
     type: object
   orgdto.CreateOrg:
     properties:
@@ -2416,6 +2627,120 @@ paths:
       summary: Update organization
       tags:
       - orgs
+  /orgs/{id}/api-keys:
+    get:
+      description: Key metadata (prefix/scopes, never hashes or raw secrets).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orgdto.ApiKeysPage'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List API keys
+      tags:
+      - orgs
+    post:
+      consumes:
+      - application/json
+      description: Mints a per-org secret for server-to-server SDK use. Raw key shown
+        once.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Key payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/orgdto.CreateApiKey'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/orgdto.ApiKeyCreated'
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: API keys cannot manage keys
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Create API key
+      tags:
+      - orgs
+  /orgs/{id}/api-keys/{keyId}:
+    delete:
+      description: Soft-revokes a key (row kept for audit). Idempotent.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: API key UUID
+        in: path
+        name: keyId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/orgdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Revoke API key
+      tags:
+      - orgs
   /orgs/{id}/audit:
     get:
       description: Tenant-scoped paper trail, newest first. Filters narrow disputes.
@@ -3260,6 +3585,465 @@ paths:
       summary: Upload gallery images
       tags:
       - events
+  /orgs/{id}/events/{eventId}/kit-collections:
+    get:
+      description: Filter by kitId, status (PENDING|COLLECTED|VOIDED), or attendeeId.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Kit UUID
+        in: query
+        name: kitId
+        type: string
+      - description: Collection status
+        in: query
+        name: status
+        type: string
+      - description: Attendee UUID
+        in: query
+        name: attendeeId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kitdto.CollectionListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List handouts
+      tags:
+      - kits
+  /orgs/{id}/events/{eventId}/kit-collections/{collectionId}/collect:
+    post:
+      description: PENDING -> COLLECTED with staff stamps. Anything else is 422.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Collection UUID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kitdto.CollectionResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Mark a reserved handout collected
+      tags:
+      - kits
+  /orgs/{id}/events/{eventId}/kit-collections/{collectionId}/void:
+    post:
+      description: PENDING or COLLECTED -> VOIDED (frees re-issue). Anything else
+        is 422.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Collection UUID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kitdto.CollectionResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Void a handout
+      tags:
+      - kits
+  /orgs/{id}/events/{eventId}/kits:
+    get:
+      description: Every kit type for one event with live pending/collected/voided/remaining
+        tallies.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/kitdto.KitResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List kit types
+      tags:
+      - kits
+    post:
+      consumes:
+      - application/json
+      description: Named kit (merch/welcome pack) with a total quantity for one event.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Kit definition
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/kitdto.CreateKitRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/kitdto.KitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Define a kit type
+      tags:
+      - kits
+  /orgs/{id}/events/{eventId}/kits/{kitId}:
+    delete:
+      description: Refused while active (non-voided) collections exist — void them
+        first.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Kit UUID
+        in: path
+        name: kitId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Delete a kit type
+      tags:
+      - kits
+    patch:
+      consumes:
+      - application/json
+      description: QuantityTotal cannot drop below the collected count (422).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Kit UUID
+        in: path
+        name: kitId
+        required: true
+        type: string
+      - description: Kit patch
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/kitdto.UpdateKitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kitdto.KitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Update a kit type
+      tags:
+      - kits
+  /orgs/{id}/events/{eventId}/kits/{kitId}/collect:
+    post:
+      consumes:
+      - application/json
+      description: Attendee must be CHECKED_IN (422 otherwise). Collects immediately
+        unless reserve=true holds a PENDING unit. IdempotencyKey makes tablet retries
+        safe.
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Kit UUID
+        in: path
+        name: kitId
+        required: true
+        type: string
+      - description: Attendee handout
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/kitdto.CollectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/kitdto.CollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: Hand a kit to an attendee
+      tags:
+      - kits
+  /orgs/{id}/events/{eventId}/kits/{kitId}/collections:
+    get:
+      description: Optional ?status= filter (PENDING|COLLECTED|VOIDED).
+      parameters:
+      - description: Org UUID or slug
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event UUID or slug
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: Kit UUID
+        in: path
+        name: kitId
+        required: true
+        type: string
+      - description: Collection status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kitdto.CollectionListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kitdto.ErrorAlias'
+      security:
+      - BearerAuth: []
+      summary: List handouts for one kit
+      tags:
+      - kits
   /orgs/{id}/events/{eventId}/publish:
     post:
       description: DRAFT → PUBLISHED; queues announcements to opted-in members.

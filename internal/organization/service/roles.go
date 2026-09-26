@@ -38,6 +38,7 @@ var roleRegistry = map[string]map[string]bool{
 	"ticket":   {"read": true, "create": true, "update": true, "delete": true},
 	"attendee": {"read": true, "create": true, "update": true},
 	"checkin":  {"read": true, "create": true, "update": true},
+	"kit":      {"read": true, "create": true, "update": true, "delete": true},
 	"audit":    {"read": true},
 	"role":     {"read": true, "create": true, "update": true, "delete": true},
 	"apikey":   {"read": true, "create": true, "delete": true},

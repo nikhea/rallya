@@ -90,19 +90,19 @@ func TestSeedAndSyncIdempotentRowCounts(t *testing.T) {
 	mustSeed(t, e, org)
 	mustSeed(t, e, org)
 	mustSeed(t, e, org)
-	// 1 owner wildcard + 28 admin + 4 member = 33 policy rows, no dupes.
-	if n := countRules(); n != 33 {
-		t.Fatalf("expected 33 policy rows after reseeds, got %d", n)
+	// 1 owner wildcard + 32 admin + 4 member = 37 policy rows, no dupes.
+	if n := countRules(); n != 37 {
+		t.Fatalf("expected 37 policy rows after reseeds, got %d", n)
 	}
 	syncRole(t, e, user, org, ptrRole(orgmodel.MemberRoleAdmin))
 	syncRole(t, e, user, org, ptrRole(orgmodel.MemberRoleAdmin))
-	if n := countRules(); n != 34 {
-		t.Fatalf("expected 34 rows after duplicate syncs, got %d", n)
+	if n := countRules(); n != 38 {
+		t.Fatalf("expected 38 rows after duplicate syncs, got %d", n)
 	}
 	syncRole(t, e, user, org, nil)
 	syncRole(t, e, user, org, nil)
-	if n := countRules(); n != 33 {
-		t.Fatalf("expected 33 rows after removals, got %d", n)
+	if n := countRules(); n != 37 {
+		t.Fatalf("expected 37 rows after removals, got %d", n)
 	}
 }
 

@@ -13,17 +13,19 @@ import (
 // Action namespaced as <object>.<verb> (checkin outcomes reuse the wire
 // outcome as the verb: checkin.checked_in, checkin.invalid_code, ...).
 const (
-	ObjectOrg        = "org"
-	ObjectMember     = "member"
-	ObjectInvite     = "invite"
-	ObjectEvent      = "event"
-	ObjectTicket     = "ticket"
-	ObjectOrder      = "order"
-	ObjectAttendee   = "attendee"
-	ObjectCheckinLog = "checkin_log"
-	ObjectPolicy     = "policy"
-	ObjectUser       = "user"
-	ObjectRole       = "role"
+	ObjectOrg           = "org"
+	ObjectMember        = "member"
+	ObjectInvite        = "invite"
+	ObjectEvent         = "event"
+	ObjectTicket        = "ticket"
+	ObjectOrder         = "order"
+	ObjectAttendee      = "attendee"
+	ObjectCheckinLog    = "checkin_log"
+	ObjectKit           = "kit"
+	ObjectKitCollection = "kit_collection"
+	ObjectPolicy        = "policy"
+	ObjectUser          = "user"
+	ObjectRole          = "role"
 )
 
 // AuditEvent is one recorded action. OrgID NULL = platform scope;

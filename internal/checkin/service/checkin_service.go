@@ -53,14 +53,22 @@ type EventResolver interface {
 	ResolveEventID(orgID uuid.UUID, ref string) (uuid.UUID, error)
 }
 
+// CollectionGuard is the consumer-declared seam into the kit domain: a
+// revert must not strand COLLECTED handouts on a REGISTERED row.
+// Implemented by kit (KitService.HasActiveCollections); nil-safe.
+type CollectionGuard interface {
+	HasActiveCollections(tx *gorm.DB, attendeeID uuid.UUID) (bool, error)
+}
+
 // CheckinService orchestrates door scans.
 type CheckinService struct {
-	db      *gorm.DB
-	repo    *repository.CheckinRepository
-	attends CheckinApplier
-	events  EventResolver
-	secret  []byte
-	auditor auditsvc.Emitter
+	db          *gorm.DB
+	repo        *repository.CheckinRepository
+	attends     CheckinApplier
+	events      EventResolver
+	collections CollectionGuard
+	secret      []byte
+	auditor     auditsvc.Emitter
 }
 
 // NewCheckinService builds the service. Secret arrives via SetQRSecret
@@ -74,6 +82,10 @@ func (s *CheckinService) SetQRSecret(secret []byte) { s.secret = secret }
 
 // SetAuditEmitter wires audit-trail emission (nil-safe when absent).
 func (s *CheckinService) SetAuditEmitter(a auditsvc.Emitter) { s.auditor = a }
+
+// SetCollectionGuard wires the kit-domain revert guard (nil-safe: reverts
+// proceed unguarded when the kit module is unwired, e.g. in older tests).
+func (s *CheckinService) SetCollectionGuard(g CollectionGuard) { s.collections = g }
 
 // audit records a slim pointer to a scan log row (nil-safe when unwired).
 // The outcome rides the action (checkin.checked_in, ...); the payload stays
@@ -219,6 +231,15 @@ func (s *CheckinService) Revert(orgID uuid.UUID, eventRef, attendeeRef string, s
 	}
 	res := &ScanResult{Outcome: checkinmodel.OutcomeReverted, Method: checkinmodel.MethodManual, AttendeeID: &attendeeID}
 	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if s.collections != nil {
+			has, err := s.collections.HasActiveCollections(tx, attendeeID)
+			if err != nil {
+				return err
+			}
+			if has {
+				return ErrCollectionsOutstanding
+			}
+		}
 		verdict, err := s.attends.RevertCheckin(tx, attendeeID, eventID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

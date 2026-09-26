@@ -209,7 +209,8 @@ func checkinErrorStatus(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, service.ErrQRSecretUnset):
 		return http.StatusServiceUnavailable
-	case errors.Is(err, service.ErrNotCheckedIn):
+	case errors.Is(err, service.ErrNotCheckedIn),
+		errors.Is(err, service.ErrCollectionsOutstanding):
 		return http.StatusUnprocessableEntity
 	default:
 		return http.StatusBadRequest
