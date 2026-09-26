@@ -26,6 +26,7 @@ const (
 	ObjectPolicy        = "policy"
 	ObjectUser          = "user"
 	ObjectRole          = "role"
+	ObjectSubscription  = "subscription"
 )
 
 // AuditEvent is one recorded action. OrgID NULL = platform scope;
