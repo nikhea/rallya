@@ -62,6 +62,10 @@ import (
 	paymenthandler "github.com/nikhea/rallya/internal/payment/handler"
 	paymentservice "github.com/nikhea/rallya/internal/payment/service"
 	"github.com/nikhea/rallya/internal/ratelimit"
+	subscription "github.com/nikhea/rallya/internal/subscription"
+	subhandler "github.com/nikhea/rallya/internal/subscription/handler"
+	subrepository "github.com/nikhea/rallya/internal/subscription/repository"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 	ticketing "github.com/nikhea/rallya/internal/ticketing"
 	tickethandler "github.com/nikhea/rallya/internal/ticketing/handler"
 	ticketrepository "github.com/nikhea/rallya/internal/ticketing/repository"
@@ -287,6 +291,28 @@ func main() {
 		kitHandler := kithandler.NewHandler(kitSvc)
 		kit.RegisterRoutes(api, kitHandler, authRepo, orgRepo, enforcer)
 
+		// Subscription domain: org tiers (FREE/PRO/SCALE) over Stripe
+		// Billing. Absent rows resolve Free; attendee checkout stays
+		// one-off and never reads this domain. Enforcing services consume
+		// entitlements through setters (nil-safe: restrictive Free).
+		subRepo := subrepository.NewSubscriptionRepository(config.DB)
+		subSvc := subservice.NewSubscriptionService(subRepo, orgSvc)
+		subSvc.SetAuditEmitter(auditSvc)
+		var billing subservice.BillingProvider
+		if stripeBilling, err := subservice.NewStripeBilling(subRepo); err != nil {
+			slog.Warn("Stripe Billing unconfigured, subscriptions read-only", "error", err)
+		} else {
+			billing = stripeBilling
+		}
+		subSvc.SetBillingProvider(billing)
+		subHandler := subhandler.NewHandler(subSvc, config.AppURL())
+		subscription.RegisterRoutes(api, subHandler, authRepo, orgRepo)
+		orgSvc.SetEntitlementProvider(subSvc)
+		eventSvc.SetEntitlementProvider(subSvc)
+		orderSvc.SetEntitlementProvider(subSvc)
+		kitSvc.SetEntitlementProvider(subSvc)
+		orderSvc.SetAttendeeCounter(attendeeSvc)
+
 		// Payments domain: Stripe Checkout + webhooks. Degrades to 503s
 		// when unconfigured; boot never fails for missing keys.
 		var checkout paymentservice.CheckoutProvider
@@ -296,6 +322,7 @@ func main() {
 			checkout = stripeProvider
 		}
 		paymentSvc := paymentservice.NewPaymentService(orderSvc, checkout)
+		paymentSvc.SetBillingHandler(subSvc)
 		paymentHandler := paymenthandler.NewHandler(paymentSvc, config.AppURL())
 		payment.RegisterRoutes(api, paymentHandler, authRepo)
 

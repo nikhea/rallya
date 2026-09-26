@@ -5744,6 +5744,215 @@
                 }
             }
         },
+        "/orgs/{id}/subscription": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Plan, status, and period end. Absent subscription reads FREE.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Org billing state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.SubscriptionResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/subscription/checkout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stripe subscription-mode Checkout for PRO/SCALE. Downgrades and cancels run through the Customer Portal.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Start a subscription Checkout",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Target plan",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/subdto.CheckoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.CheckoutResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/orgs/{id}/subscription/portal": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Self-serve manage/cancel (downgrades land at period end).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Customer Portal session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Org UUID or slug",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.PortalResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/subdto.ErrorAlias"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/plans": {
+            "get": {
+                "description": "Three tiers with quotas, feature flags, and monthly prices.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Subscription catalog",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/subdto.TierResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/webhooks/stripe": {
             "post": {
                 "description": "Signature-verified fulfillment endpoint. Send raw event JSON with a valid Stripe-Signature header.",
@@ -7551,6 +7760,131 @@
                 "message": {
                     "type": "string",
                     "example": "ok"
+                }
+            }
+        },
+        "subdto.CheckoutRequest": {
+            "type": "object",
+            "properties": {
+                "plan": {
+                    "type": "string",
+                    "example": "PRO"
+                }
+            }
+        },
+        "subdto.CheckoutResponse": {
+            "type": "object",
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "example": "cs_test_123"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://checkout.stripe.com/c/pay/cs_test_123"
+                }
+            }
+        },
+        "subdto.ErrorAlias": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "UPGRADE_REQUIRED"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "plan limit reached — upgrade required"
+                }
+            }
+        },
+        "subdto.Limits": {
+            "type": "object",
+            "properties": {
+                "maxAttendeesPerEvent": {
+                    "type": "integer",
+                    "example": 2000
+                },
+                "maxEvents": {
+                    "type": "integer",
+                    "example": 25
+                },
+                "maxKitsPerEvent": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "maxMembers": {
+                    "type": "integer",
+                    "example": 25
+                }
+            }
+        },
+        "subdto.PortalResponse": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "example": "https://billing.stripe.com/p/session/test_123"
+                }
+            }
+        },
+        "subdto.SubscriptionResponse": {
+            "type": "object",
+            "properties": {
+                "cancelAtPeriodEnd": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "currentPeriodEnd": {
+                    "type": "string",
+                    "example": "2026-10-26T00:00:00Z"
+                },
+                "plan": {
+                    "type": "string",
+                    "example": "PRO"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "ACTIVE"
+                }
+            }
+        },
+        "subdto.TierResponse": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "usd"
+                },
+                "features": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "custom_roles",
+                        "api_keys",
+                        "kits"
+                    ]
+                },
+                "limits": {
+                    "$ref": "#/definitions/subdto.Limits"
+                },
+                "monthlyCents": {
+                    "type": "integer",
+                    "example": 2900
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Pro"
+                },
+                "plan": {
+                    "type": "string",
+                    "example": "PRO"
+                },
+                "priceId": {
+                    "type": "string",
+                    "example": "price_123"
                 }
             }
         },
