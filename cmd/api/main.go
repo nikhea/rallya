@@ -44,6 +44,10 @@ import (
 	eventrepository "github.com/nikhea/rallya/internal/event/repository"
 	eventservice "github.com/nikhea/rallya/internal/event/service"
 	"github.com/nikhea/rallya/internal/iam"
+	kit "github.com/nikhea/rallya/internal/kit"
+	kithandler "github.com/nikhea/rallya/internal/kit/handler"
+	kitrepository "github.com/nikhea/rallya/internal/kit/repository"
+	kitservice "github.com/nikhea/rallya/internal/kit/service"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 	order "github.com/nikhea/rallya/internal/order"
 	orderhandler "github.com/nikhea/rallya/internal/order/handler"
@@ -271,6 +275,17 @@ func main() {
 		checkinSvc.SetAuditEmitter(auditSvc)
 		checkinHandler := checkinhandler.NewHandler(checkinSvc)
 		checkin.RegisterRoutes(api, checkinHandler, authRepo, orgRepo, enforcer)
+
+		// Kit domain: named kit types per event + PENDING -> COLLECTED
+		// (-> VOIDED) handouts over the attendee seam. Eligibility reads
+		// attendee status (CHECKED_IN gate); check-in reverts consult the
+		// collection guard so COLLECTED rows never strand on REGISTERED.
+		kitRepo := kitrepository.NewKitRepository(config.DB)
+		kitSvc := kitservice.NewKitService(config.DB, kitRepo, attendeeSvc, eventSvc)
+		kitSvc.SetAuditEmitter(auditSvc)
+		checkinSvc.SetCollectionGuard(kitSvc)
+		kitHandler := kithandler.NewHandler(kitSvc)
+		kit.RegisterRoutes(api, kitHandler, authRepo, orgRepo, enforcer)
 
 		// Payments domain: Stripe Checkout + webhooks. Degrades to 503s
 		// when unconfigured; boot never fails for missing keys.
