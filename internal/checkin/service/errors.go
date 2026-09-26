@@ -12,4 +12,7 @@ var (
 	// ErrNotCheckedIn signals a revert against a row that is not
 	// CHECKED_IN (never scanned, or terminally CANCELLED).
 	ErrNotCheckedIn = errors.New("attendee is not checked in")
+	// ErrCollectionsOutstanding blocks a revert while the attendee holds
+	// non-voided kit collections (void them first — locked kit behavior).
+	ErrCollectionsOutstanding = errors.New("attendee has unvoided kit collections")
 )

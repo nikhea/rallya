@@ -289,6 +289,21 @@ func (s *AttendeeService) ApplyCheckinManual(tx *gorm.DB, attendeeID, eventID uu
 	return s.flip(tx, a, v)
 }
 
+// AttendeeStatusInEvent returns one attendee's status for event scoping.
+// Unknown rows and cross-event rows surface gorm.ErrRecordNotFound
+// (stealth — callers map to 404 without revealing which).
+// Implements the kit domain's AttendeeChecker contract.
+func (s *AttendeeService) AttendeeStatusInEvent(attendeeID, eventID uuid.UUID) (model.AttendeeStatus, error) {
+	a, err := s.repo.GetAttendeeByID(attendeeID)
+	if err != nil {
+		return "", err
+	}
+	if a.EventID != eventID {
+		return "", gorm.ErrRecordNotFound
+	}
+	return a.Status, nil
+}
+
 // CountByStatus tallies an event's roster per status (door stats).
 func (s *AttendeeService) CountByStatus(eventID uuid.UUID) (map[string]int64, error) {
 	return s.repo.CountByStatus(eventID)
