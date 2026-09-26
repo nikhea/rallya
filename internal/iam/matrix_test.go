@@ -22,6 +22,7 @@ var expectedGrants = map[orgmodel.MemberRole]map[string]map[string]bool{
 		iam.ObjTicket:   {"read": true, "create": true, "update": true, "delete": true},
 		iam.ObjAttendee: {"read": true, "create": true, "update": true},
 		iam.ObjCheckin:  {"read": true, "create": true, "update": true},
+		iam.ObjKit:      {"read": true, "create": true, "update": true, "delete": true},
 		iam.ObjAudit:    {"read": true},
 		iam.ObjRole:     {"read": true},
 		iam.ObjApikey:   {"read": true, "create": true, "delete": true},
