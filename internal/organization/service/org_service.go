@@ -24,6 +24,7 @@ import (
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	"github.com/nikhea/rallya/internal/organization/repository"
 	orgutils "github.com/nikhea/rallya/internal/organization/utils"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
 )
 
 const inviteTTL = 7 * 24 * time.Hour
@@ -43,6 +44,29 @@ type OrgService struct {
 	cleaner  AssetCleaner
 	auditor  auditsvc.Emitter
 	apiKeys  ApiKeyStore
+	plans    EntitlementProvider
+}
+
+// EntitlementProvider resolves subscription entitlements (implemented by
+// the subscription domain; nil resolves Free — fail-closed restrictive).
+type EntitlementProvider interface {
+	EntitlementFor(orgID uuid.UUID) (submodel.Entitlement, error)
+}
+
+// SetEntitlementProvider wires plan quota/feature enforcement.
+func (s *OrgService) SetEntitlementProvider(p EntitlementProvider) { s.plans = p }
+
+// entitlement resolves the org's tier (Free when unwired or on error:
+// restrictive default, never open).
+func (s *OrgService) entitlement(orgID uuid.UUID) submodel.Entitlement {
+	if s.plans == nil {
+		return submodel.FreeEntitlement()
+	}
+	ent, err := s.plans.EntitlementFor(orgID)
+	if err != nil {
+		return submodel.FreeEntitlement()
+	}
+	return ent
 }
 
 // NewOrgService builds the service. users is required; enqueuer/syncer/
@@ -313,6 +337,20 @@ func (s *OrgService) requireRole(userID uuid.UUID, ref string, min orgmodel.Memb
 		return nil, nil, ErrForbidden
 	}
 	return o, m, nil
+}
+
+// IsOwner reports org ownership (subscription billing gate).
+// Outsiders and missing rows read false (never leaks membership).
+// Implements the subscription domain's OwnerChecker contract.
+func (s *OrgService) IsOwner(userID, orgID uuid.UUID) (bool, error) {
+	m, err := s.repo.GetMembership(orgID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return m.Role == orgmodel.MemberRoleOwner, nil
 }
 
 // guardLastOwner blocks demoting/removing the final OWNER.

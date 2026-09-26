@@ -17,6 +17,8 @@ import (
 	"github.com/nikhea/rallya/internal/event/service"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // fakeOrgs implements service.OrgResolver in-memory.
@@ -75,6 +77,20 @@ func (f *fakeOrgs) NotifyTargets(orgID uuid.UUID) ([]orgdto.MemberNotify, error)
 
 var errNoOrg = errors.New("no org")
 
+// proEventPlans grants Pro everywhere (event suites predate plans).
+type proEventPlans struct{}
+
+func (proEventPlans) EntitlementFor(_ uuid.UUID) (submodel.Entitlement, error) {
+	return submodel.EntitlementForPlan(submodel.PlanPro), nil
+}
+
+// freeEventPlans resolves Free everywhere (quota tests).
+type freeEventPlans struct{}
+
+func (freeEventPlans) EntitlementFor(_ uuid.UUID) (submodel.Entitlement, error) {
+	return submodel.FreeEntitlement(), nil
+}
+
 // fakeStorage records cover saves in memory.
 type fakeStorage struct {
 	saved    map[string][]byte
@@ -131,6 +147,7 @@ func newEventFixture(t *testing.T) *eventFixture {
 	repo := repository.NewEventRepository(db)
 	orgs := newFakeOrgs()
 	svc := service.NewEventService(repo, orgs)
+	svc.SetEntitlementProvider(proEventPlans{})
 	fake := &jobs.FakeEnqueuer{}
 	svc.SetEnqueuer(fake)
 	storage := newFakeStorage()
@@ -458,5 +475,19 @@ func TestDeleteEventCleansGalleryAssets(t *testing.T) {
 	// cover clone + 2 gallery assets cleaned.
 	if len(f.storage.deleted)-before != 3 {
 		t.Fatalf("expected 3 asset cleanups, got %v", f.storage.deleted)
+	}
+}
+
+func TestCreateEventOverQuotaFree(t *testing.T) {
+	f := newEventFixture(t)
+	f.svc.SetEntitlementProvider(freeEventPlans{})
+	// Free default (3 active events).
+	for _, title := range []string{"E1", "E2", "E3"} {
+		if _, err := f.svc.CreateEvent(f.user, "acme", service.CreateInput{Title: title}); err != nil {
+			t.Fatalf("create %q: %v", title, err)
+		}
+	}
+	if _, err := f.svc.CreateEvent(f.user, "acme", service.CreateInput{Title: "E4"}); err != subservice.ErrUpgradeRequired {
+		t.Fatalf("4th event: want ErrUpgradeRequired, got %v", err)
 	}
 }

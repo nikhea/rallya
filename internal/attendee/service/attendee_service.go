@@ -309,6 +309,17 @@ func (s *AttendeeService) CountByStatus(eventID uuid.UUID) (map[string]int64, er
 	return s.repo.CountByStatus(eventID)
 }
 
+// CountRoster counts seat-holding attendees (REGISTERED + CHECKED_IN;
+// CANCELLED freed their seats). Implements the order domain's
+// AttendeeCounter contract for plan capacity.
+func (s *AttendeeService) CountRoster(eventID uuid.UUID) (int64, error) {
+	counts, err := s.repo.CountByStatus(eventID)
+	if err != nil {
+		return 0, err
+	}
+	return counts[string(model.AttendeeStatusRegistered)] + counts[string(model.AttendeeStatusCheckedIn)], nil
+}
+
 // RevertCheckin atomically undoes a mis-scan: CHECKED_IN -> REGISTERED with
 // the timestamp cleared, inside the caller's tx (row-locked, same race
 // guarantees as the forward flip). Only CHECKED_IN rows revert — anything

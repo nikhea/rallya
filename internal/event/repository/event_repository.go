@@ -81,6 +81,17 @@ func (r *EventRepository) ListImagesByEvent(eventID uuid.UUID) ([]model.EventIma
 	return out, nil
 }
 
+// CountActiveByOrg returns the org's non-cancelled event count (plan quota).
+func (r *EventRepository) CountActiveByOrg(orgID uuid.UUID) (int64, error) {
+	var n int64
+	if err := r.db.Model(&model.Event{}).
+		Where("organization_id = ? AND status <> ?", orgID, model.EventStatusCancelled).
+		Count(&n).Error; err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // ListEvents returns paginated events honoring the filter.
 func (r *EventRepository) ListEvents(f EventFilter, limit, offset int, sort string) ([]model.Event, int64, error) {
 	var out []model.Event

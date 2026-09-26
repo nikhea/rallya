@@ -15,6 +15,7 @@ import (
 	ordermodel "github.com/nikhea/rallya/internal/order/model"
 	"github.com/nikhea/rallya/internal/order/repository"
 	"github.com/nikhea/rallya/internal/order/service"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 	ticketdto "github.com/nikhea/rallya/internal/ticketing/dto"
 	ticketservice "github.com/nikhea/rallya/internal/ticketing/service"
 )
@@ -443,5 +444,31 @@ func TestFreeConfirmMintsAndEmails(t *testing.T) {
 	args, ok := mail[0].(jobs.SendOrderConfirmationEmailArgs)
 	if !ok || len(args.Items) != 2 || args.Email != "buyer@test.com" {
 		t.Fatalf("bad job args: %+v", mail[0])
+	}
+}
+
+type fakeCounter struct{ n int64 }
+
+func (f *fakeCounter) CountRoster(_ uuid.UUID) (int64, error) { return f.n, nil }
+
+func TestOrderAttendeeCapacityFree(t *testing.T) {
+	f := newOrderFixture(t)
+	typeID := uuid.New()
+	f.ticks.addType(typeID, f.event, 0, 1000, nil, true)
+	// No counter wired: cap skipped (existing tests prove this path).
+	// Wire a full roster at the Free cap (200): one more seat trips 409.
+	f.svc.SetAttendeeCounter(&fakeCounter{n: 200})
+	_, err := f.svc.CreateOrder(context.Background(), f.user, f.event, service.CreateInput{
+		TicketTypeID: typeID, Quantity: 1,
+	})
+	if err != subservice.ErrEventAtCapacity {
+		t.Fatalf("over cap: want ErrEventAtCapacity, got %v", err)
+	}
+	// Room for exactly the headroom still succeeds.
+	f.svc.SetAttendeeCounter(&fakeCounter{n: 199})
+	if _, err := f.svc.CreateOrder(context.Background(), f.user, f.event, service.CreateInput{
+		TicketTypeID: typeID, Quantity: 1,
+	}); err != nil {
+		t.Fatalf("headroom: %v", err)
 	}
 }

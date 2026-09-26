@@ -83,6 +83,7 @@ func newRoleFixture(t *testing.T) *roleFixture {
 	staff := users.Add(&authmodel.User{Email: "rstaff@test.com", Status: authmodel.UserStatusActive})
 	repo := repository.NewOrgRepository(db)
 	svc := service.NewOrgService(repo, users)
+	svc.SetEntitlementProvider(proEntitlements())
 	e, err := iam.NewEnforcer(db)
 	if err != nil {
 		t.Fatalf("enforcer: %v", err)

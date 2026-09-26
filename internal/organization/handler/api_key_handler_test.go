@@ -41,6 +41,7 @@ func newApiKeyFixture(t *testing.T) *orgFixture {
 	}
 	orgSvc.SetGroupSyncer(iam.NewMembershipSyncer(e))
 	orgSvc.SetPolicySeeder(iam.NewOrgPolicySeeder(e))
+	orgSvc.SetEntitlementProvider(proPlans{})
 	orgHandler := handler.NewHandler(orgSvc)
 
 	r := gin.New()

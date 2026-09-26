@@ -24,6 +24,8 @@ import (
 	"github.com/nikhea/rallya/internal/event/utils"
 	"github.com/nikhea/rallya/internal/notification/jobs"
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // Cover size/type policy (Q11) and gallery limits.
@@ -85,6 +87,28 @@ type EventService struct {
 	storage  CoverStorage
 	auditor  auditsvc.Emitter
 	dcache   DetailCache
+	plans    EntitlementProvider
+}
+
+// EntitlementProvider resolves subscription entitlements (implemented by
+// the subscription domain; nil resolves Free — fail-closed restrictive).
+type EntitlementProvider interface {
+	EntitlementFor(orgID uuid.UUID) (submodel.Entitlement, error)
+}
+
+// SetEntitlementProvider wires plan quota enforcement.
+func (s *EventService) SetEntitlementProvider(p EntitlementProvider) { s.plans = p }
+
+// entitlement resolves the org's tier (Free when unwired or on error).
+func (s *EventService) entitlement(orgID uuid.UUID) submodel.Entitlement {
+	if s.plans == nil {
+		return submodel.FreeEntitlement()
+	}
+	ent, err := s.plans.EntitlementFor(orgID)
+	if err != nil {
+		return submodel.FreeEntitlement()
+	}
+	return ent
 }
 
 // NewEventService builds the service. orgs is required; enqueuer/storage
@@ -138,6 +162,11 @@ func (s *EventService) CreateEvent(creatorID uuid.UUID, orgRef string, in Create
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
 		return nil, ErrInvalidTitle
+	}
+	if n, err := s.repo.CountActiveByOrg(orgID); err != nil {
+		return nil, err
+	} else if n >= int64(s.entitlement(orgID).Limits.MaxEvents) {
+		return nil, subservice.ErrUpgradeRequired
 	}
 	if err := checkDates(in.StartsAt, in.EndsAt); err != nil {
 		return nil, err

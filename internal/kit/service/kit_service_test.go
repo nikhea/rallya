@@ -17,6 +17,8 @@ import (
 	kitModel "github.com/nikhea/rallya/internal/kit/model"
 	"github.com/nikhea/rallya/internal/kit/repository"
 	"github.com/nikhea/rallya/internal/kit/service"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 type fakeEvents struct{ a, b uuid.UUID }
@@ -66,6 +68,8 @@ func newKitHarness(t *testing.T) *kitHarness {
 	ev := fakeEvents{a: uuid.New(), b: uuid.New()}
 	attends := &fakeAttends{rows: map[uuid.UUID]attendeeModel.AttendeeStatus{}, event: ev.a}
 	svc := service.NewKitService(db, repository.NewKitRepository(db), attends, ev)
+	// Kit suites predate plans: default to Pro (flag tests override).
+	svc.SetEntitlementProvider(&fakeKitPlans{ent: submodel.EntitlementForPlan(submodel.PlanPro)})
 	return &kitHarness{db: db, svc: svc, attends: attends, events: ev, orgID: uuid.New(), staff: uuid.New()}
 }
 
@@ -334,6 +338,7 @@ func TestRevertBlockedByCollections(t *testing.T) {
 	attSvc := attendeeService.NewAttendeeService(attendeeRepo.NewAttendeeRepository(db), authSvc, nil, nil)
 	checkSvc := checkinService.NewCheckinService(db, checkinRepo.NewCheckinRepository(db), attSvc, ev)
 	kitSvc := service.NewKitService(db, repository.NewKitRepository(db), attSvc, ev)
+	kitSvc.SetEntitlementProvider(&fakeKitPlans{ent: submodel.EntitlementForPlan(submodel.PlanPro)})
 	checkSvc.SetCollectionGuard(kitSvc)
 
 	minted, err := attSvc.MintForOrder(db, uuid.New(), uuid.New(), ev.a, "fan@test.com", "Fan", 1)
@@ -373,4 +378,39 @@ func TestRevertBlockedByCollections(t *testing.T) {
 	if rr.Outcome != checkinModel.OutcomeReverted {
 		t.Fatalf("want REVERTED, got %s", rr.Outcome)
 	}
+}
+
+type fakeKitPlans struct {
+	ent submodel.Entitlement
+}
+
+func (f *fakeKitPlans) EntitlementFor(_ uuid.UUID) (submodel.Entitlement, error) {
+	return f.ent, nil
+}
+
+func TestKitPlanGates(t *testing.T) {
+	newKitHarnessWithPlans := func(t *testing.T, ent submodel.Entitlement) *kitHarness {
+		t.Helper()
+		h := newKitHarness(t)
+		h.svc.SetEntitlementProvider(&fakeKitPlans{ent: ent})
+		return h
+	}
+
+	t.Run("free tier cannot define kits", func(t *testing.T) {
+		h := newKitHarnessWithPlans(t, submodel.FreeEntitlement())
+		if _, err := h.svc.CreateKit(h.orgID, "fest", "Pack", "", 5, h.staff); err != subservice.ErrUpgradeRequired {
+			t.Fatalf("want ErrUpgradeRequired, got %v", err)
+		}
+	})
+	t.Run("per-event kit count enforced", func(t *testing.T) {
+		ent := submodel.EntitlementForPlan(submodel.PlanPro)
+		ent.Limits.MaxKitsPerEvent = 1
+		h := newKitHarnessWithPlans(t, ent)
+		if _, err := h.svc.CreateKit(h.orgID, "fest", "One", "", 5, h.staff); err != nil {
+			t.Fatalf("first: %v", err)
+		}
+		if _, err := h.svc.CreateKit(h.orgID, "fest", "Two", "", 5, h.staff); err != subservice.ErrUpgradeRequired {
+			t.Fatalf("second: want ErrUpgradeRequired, got %v", err)
+		}
+	})
 }

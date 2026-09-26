@@ -15,6 +15,10 @@ type StripeConfig struct {
 	WebhookSecret string
 	// PublishableKey is exposed to frontends (pk_test_...); unused server-side.
 	PublishableKey string
+	// PricePro/PriceScale are recurring Stripe Price IDs for org plans
+	// (price_...). Empty = that tier cannot be purchased (503).
+	PricePro   string
+	PriceScale string
 }
 
 // StripeConfigFromEnv resolves Stripe settings.
@@ -23,6 +27,8 @@ func StripeConfigFromEnv() StripeConfig {
 		SecretKey:      os.Getenv("STRIPE_SECRET_KEY"),
 		WebhookSecret:  os.Getenv("STRIPE_WEBHOOKS_SIGNING_SECRET"),
 		PublishableKey: os.Getenv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
+		PricePro:       os.Getenv("STRIPE_PRICE_PRO"),
+		PriceScale:     os.Getenv("STRIPE_PRICE_SCALE"),
 	}
 }
 

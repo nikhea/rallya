@@ -12,6 +12,8 @@ import (
 	auditSvc "github.com/nikhea/rallya/internal/audit/service"
 	kitModel "github.com/nikhea/rallya/internal/kit/model"
 	"github.com/nikhea/rallya/internal/kit/repository"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // EventResolver resolves event refs within an org (implemented by events).
@@ -33,6 +35,28 @@ type KitService struct {
 	attends AttendeeChecker
 	events  EventResolver
 	auditor auditSvc.Emitter
+	plans   EntitlementProvider
+}
+
+// EntitlementProvider resolves subscription entitlements (implemented by
+// the subscription domain; nil resolves Free — fail-closed restrictive).
+type EntitlementProvider interface {
+	EntitlementFor(orgID uuid.UUID) (submodel.Entitlement, error)
+}
+
+// SetEntitlementProvider wires plan feature/quota enforcement.
+func (s *KitService) SetEntitlementProvider(p EntitlementProvider) { s.plans = p }
+
+// entitlement resolves the org's tier (Free when unwired or on error).
+func (s *KitService) entitlement(orgID uuid.UUID) submodel.Entitlement {
+	if s.plans == nil {
+		return submodel.FreeEntitlement()
+	}
+	ent, err := s.plans.EntitlementFor(orgID)
+	if err != nil {
+		return submodel.FreeEntitlement()
+	}
+	return ent
 }
 
 // NewKitService builds the service.
@@ -89,6 +113,19 @@ func (s *KitService) CreateKit(orgID uuid.UUID, eventRef, name, description stri
 	}
 	if quantityTotal < 1 {
 		return nil, ErrInvalidQuantity
+	}
+	ent := s.entitlement(orgID)
+	if !ent.Can(submodel.FeatureKits) {
+		return nil, subservice.ErrUpgradeRequired
+	}
+	if max := ent.Limits.MaxKitsPerEvent; max >= 0 {
+		kits, err := s.repo.ListKitsByEvent(eventID)
+		if err != nil {
+			return nil, err
+		}
+		if len(kits) >= max {
+			return nil, subservice.ErrUpgradeRequired
+		}
 	}
 	k := &kitModel.Kit{
 		EventID: eventID, Name: strings.TrimSpace(name),

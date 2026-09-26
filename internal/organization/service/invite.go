@@ -16,6 +16,7 @@ import (
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	orgutils "github.com/nikhea/rallya/internal/organization/utils"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // ---------- invites ----------
@@ -158,6 +159,11 @@ func (s *OrgService) AcceptInvite(userID uuid.UUID, raw string) (*orgdto.Org, er
 	if existing, err := s.repo.GetMembership(o.ID, u.ID); err == nil {
 		_ = s.repo.ConsumeInvite(nil, inv.ID, true, now)
 		return toOrg(o, existing.Role), nil
+	}
+	if n, err := s.repo.CountMembers(o.ID); err != nil {
+		return nil, err
+	} else if n >= int64(s.entitlement(o.ID).Limits.MaxMembers) {
+		return nil, subservice.ErrUpgradeRequired
 	}
 	m := &orgmodel.Membership{OrganizationID: o.ID, UserID: u.ID, Role: inv.Role}
 	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {

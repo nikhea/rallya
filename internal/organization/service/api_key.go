@@ -15,6 +15,8 @@ import (
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	orgutils "github.com/nikhea/rallya/internal/organization/utils"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // ApiKeyStore is the consumer-declared persistence seam for org API keys.
@@ -54,6 +56,9 @@ func (s *OrgService) CreateApiKey(creatorID uuid.UUID, ref, name string, scopes 
 	o, _, err := s.requireRole(creatorID, ref, orgmodel.MemberRoleAdmin)
 	if err != nil {
 		return nil, err
+	}
+	if !s.entitlement(o.ID).Can(submodel.FeatureAPIKeys) {
+		return nil, subservice.ErrUpgradeRequired
 	}
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 100 {

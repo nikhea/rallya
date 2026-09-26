@@ -52,6 +52,7 @@ func newRoleHTTPFixture(t *testing.T) (*gin.Engine, map[string]string, string) {
 	orgSvc := orgservice.NewOrgService(orgRepo, authSvc)
 	orgSvc.SetGroupSyncer(iam.NewMembershipSyncer(e))
 	orgSvc.SetPolicySeeder(iam.NewOrgPolicySeeder(e))
+	orgSvc.SetEntitlementProvider(proPlans{})
 	orgSvc.SetAuditEmitter(auditservice.NewAuditService(auditrepo.NewAuditRepository(db)))
 
 	r := gin.New()
