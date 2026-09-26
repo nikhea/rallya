@@ -1,6 +1,7 @@
 package token
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -53,7 +54,19 @@ func TestParseRejectsTampered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	tampered := raw[:len(raw)-1] + "x"
+	// Flip the first signature char: fully significant base64 bits, so the
+	// decoded signature always changes. (Flipping the LAST char is a no-op
+	// ~1/16 of the time — trailing zero bits decode identically — which
+	// made this test flaky.)
+	parts := strings.Split(raw, ".")
+	if len(parts) != 3 {
+		t.Fatalf("malformed token: %v", raw)
+	}
+	first := byte('A')
+	if parts[2][0] == 'A' {
+		first = 'B'
+	}
+	tampered := parts[0] + "." + parts[1] + "." + string(first) + parts[2][1:]
 	if _, _, err := ParseAccessToken(secret, tampered); err == nil {
 		t.Fatal("expected error for tampered token")
 	}
