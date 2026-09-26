@@ -13,6 +13,8 @@ import (
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	orgutils "github.com/nikhea/rallya/internal/organization/utils"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // ---------- custom roles ----------
@@ -111,6 +113,9 @@ func (s *OrgService) DefineRole(grantorID uuid.UUID, ref, name string, perms []R
 	o, _, err := s.requireRole(grantorID, ref, orgmodel.MemberRoleOwner)
 	if err != nil {
 		return nil, err
+	}
+	if !s.entitlement(o.ID).Can(submodel.FeatureCustomRoles) {
+		return nil, subservice.ErrUpgradeRequired
 	}
 	role, err := normalizeRoleName(name)
 	if err != nil {

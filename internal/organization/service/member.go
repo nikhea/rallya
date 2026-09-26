@@ -13,6 +13,7 @@ import (
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	orgutils "github.com/nikhea/rallya/internal/organization/utils"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // ---------- members ----------
@@ -50,6 +51,11 @@ func (s *OrgService) AddMember(grantorID uuid.UUID, ref, email string, role orgm
 	}
 	if g.Role.Level() < role.Level() {
 		return nil, ErrForbidden
+	}
+	if n, err := s.repo.CountMembers(o.ID); err != nil {
+		return nil, err
+	} else if n >= int64(s.entitlement(o.ID).Limits.MaxMembers) {
+		return nil, subservice.ErrUpgradeRequired
 	}
 	target, err := s.users.GetUserByEmail(orgutils.NormalizeEmail(email))
 	if err != nil {

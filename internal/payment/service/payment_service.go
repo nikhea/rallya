@@ -30,7 +30,18 @@ type OrderStore interface {
 type PaymentService struct {
 	orders   OrderStore
 	provider CheckoutProvider
+	billing  BillingHandler
 }
+
+// BillingHandler routes subscription/invoice events (implemented by the
+// subscription domain). Nil-safe: billing events ack silently when the
+// subscription module is unwired.
+type BillingHandler interface {
+	HandleBillingEvent(evt *stripe.Event) (bool, error)
+}
+
+// SetBillingHandler wires subscription webhook dispatch.
+func (s *PaymentService) SetBillingHandler(b BillingHandler) { s.billing = b }
 
 // NewPaymentService builds the service. provider nil = misconfigured;
 // checkout calls fail closed, webhook verification still enforced.
@@ -103,9 +114,28 @@ func (s *PaymentService) HandleWebhook(payload []byte, sigHeader string) error {
 	}
 	switch evt.Type {
 	case "checkout.session.completed", "checkout.session.async_payment_succeeded":
+		if s.billing != nil {
+			handled, err := s.billing.HandleBillingEvent(&evt)
+			if err != nil {
+				return &FulfillError{"billing event failed: " + err.Error()}
+			}
+			if handled {
+				return nil
+			}
+		}
 		return s.fulfillSession(&evt)
 	case "checkout.session.async_payment_failed":
 		slog.Info("async payment failed", "event", evt.ID)
+		return nil
+	case "invoice.payment_succeeded", "invoice.payment_failed",
+		"customer.subscription.updated", "customer.subscription.deleted":
+		if s.billing == nil {
+			slog.Debug("ignoring billing event (subscription module unwired)", "type", evt.Type)
+			return nil
+		}
+		if _, err := s.billing.HandleBillingEvent(&evt); err != nil {
+			return &FulfillError{"billing event failed: " + err.Error()}
+		}
 		return nil
 	default:
 		slog.Debug("ignoring stripe event", "type", evt.Type)

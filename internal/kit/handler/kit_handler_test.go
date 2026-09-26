@@ -40,6 +40,7 @@ import (
 	orgmodel "github.com/nikhea/rallya/internal/organization/model"
 	orgrepository "github.com/nikhea/rallya/internal/organization/repository"
 	orgservice "github.com/nikhea/rallya/internal/organization/service"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
 )
 
 func init() { gin.SetMode(gin.TestMode) }
@@ -97,6 +98,7 @@ func newKitFixture(t *testing.T) *kitFullFixture {
 
 	kitSvc := kitservice.NewKitService(db, kitrepo.NewKitRepository(db), attSvc, eventSvc)
 	kitSvc.SetAuditEmitter(auditSvc)
+	kitSvc.SetEntitlementProvider(proKitPlans{})
 
 	r := gin.New()
 	kit.RegisterRoutes(r.Group("/api/v1"), handler.NewHandler(kitSvc), authRepo, orgRepo, e)
@@ -294,6 +296,13 @@ func TestHTTPKitGates(t *testing.T) {
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("unckecked collect: want 422, got %d", code)
 	}
+}
+
+// proKitPlans grants Pro everywhere (kit HTTP suites predate plans).
+type proKitPlans struct{}
+
+func (proKitPlans) EntitlementFor(_ uuid.UUID) (submodel.Entitlement, error) {
+	return submodel.EntitlementForPlan(submodel.PlanPro), nil
 }
 
 // flipToCheckedIn flips one attendee row straight to CHECKED_IN.

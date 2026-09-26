@@ -14,6 +14,7 @@ import (
 	authhandler "github.com/nikhea/rallya/internal/auth/handler"
 	eventdto "github.com/nikhea/rallya/internal/event/dto"
 	"github.com/nikhea/rallya/internal/event/service"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // Handler adapts EventService to Gin. No business logic here.
@@ -469,6 +470,8 @@ func eventErrorStatus(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, service.ErrForbidden):
 		return http.StatusForbidden
+	case errors.Is(err, subservice.ErrUpgradeRequired):
+		return http.StatusPaymentRequired
 	case errors.Is(err, service.ErrSlugTaken),
 		errors.Is(err, service.ErrInvalidStatus):
 		return http.StatusConflict

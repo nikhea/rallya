@@ -13,6 +13,7 @@ import (
 	orgdto "github.com/nikhea/rallya/internal/organization/dto"
 	"github.com/nikhea/rallya/internal/organization/model"
 	"github.com/nikhea/rallya/internal/organization/service"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // Handler adapts OrgService to Gin. No business logic here.
@@ -463,6 +464,8 @@ func orgErrorStatus(err error) int {
 	case errors.Is(err, service.ErrForbidden),
 		errors.Is(err, service.ErrInviteEmailMismatch):
 		return http.StatusForbidden
+	case errors.Is(err, subservice.ErrUpgradeRequired):
+		return http.StatusPaymentRequired
 	case errors.Is(err, service.ErrSlugTaken),
 		errors.Is(err, service.ErrAlreadyMember),
 		errors.Is(err, service.ErrLastOwner),

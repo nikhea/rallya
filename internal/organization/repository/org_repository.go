@@ -94,6 +94,15 @@ func (r *OrgRepository) GetMembership(orgID, userID uuid.UUID) (*model.Membershi
 	return &m, nil
 }
 
+// CountMembers returns the membership headcount of an org.
+func (r *OrgRepository) CountMembers(orgID uuid.UUID) (int64, error) {
+	var n int64
+	if err := r.db.Model(&model.Membership{}).Where("organization_id = ?", orgID).Count(&n).Error; err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // ListMemberships returns all memberships of an org.
 func (r *OrgRepository) ListMemberships(orgID uuid.UUID, limit, offset int) ([]model.Membership, int64, error) {
 	var out []model.Membership

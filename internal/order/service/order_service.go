@@ -19,6 +19,8 @@ import (
 	"github.com/nikhea/rallya/internal/order/model"
 	"github.com/nikhea/rallya/internal/order/repository"
 	"github.com/nikhea/rallya/internal/order/utils"
+	submodel "github.com/nikhea/rallya/internal/subscription/model"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 	ticketdto "github.com/nikhea/rallya/internal/ticketing/dto"
 	ticketservice "github.com/nikhea/rallya/internal/ticketing/service"
 )
@@ -52,6 +54,19 @@ type AttendeeMinter interface {
 	CancelForOrder(tx *gorm.DB, orderID uuid.UUID) error
 }
 
+// AttendeeCounter reads roster headcount for plan capacity (buyer-facing
+// 409 when the tier's attendee cap is hit). Declared here; attendee
+// implements it. Nil-safe: skipped when unwired.
+type AttendeeCounter interface {
+	CountRoster(eventID uuid.UUID) (int64, error)
+}
+
+// EntitlementProvider resolves subscription entitlements (implemented by
+// the subscription domain; nil resolves Free — fail-closed restrictive).
+type EntitlementProvider interface {
+	EntitlementFor(orgID uuid.UUID) (submodel.Entitlement, error)
+}
+
 // MintedAttendee is one minted row plus its raw token (email-embed only).
 type MintedAttendee struct {
 	ID      uuid.UUID
@@ -66,6 +81,8 @@ type OrderService struct {
 	orgs     OrgAccess
 	users    auth.UserReader
 	minter   AttendeeMinter
+	counter  AttendeeCounter
+	plans    EntitlementProvider
 	enqueuer jobs.Enqueuer
 	qrSecret []byte
 	auditor  auditsvc.Emitter
@@ -79,6 +96,24 @@ func NewOrderService(repo *repository.OrderRepository, tickets TicketStore, even
 
 // SetAttendeeMinter wires door-record minting.
 func (s *OrderService) SetAttendeeMinter(m AttendeeMinter) { s.minter = m }
+
+// SetAttendeeCounter wires roster headcount for plan capacity.
+func (s *OrderService) SetAttendeeCounter(c AttendeeCounter) { s.counter = c }
+
+// SetEntitlementProvider wires plan quota enforcement.
+func (s *OrderService) SetEntitlementProvider(p EntitlementProvider) { s.plans = p }
+
+// entitlement resolves the org's tier (Free when unwired or on error).
+func (s *OrderService) entitlement(orgID uuid.UUID) submodel.Entitlement {
+	if s.plans == nil {
+		return submodel.FreeEntitlement()
+	}
+	ent, err := s.plans.EntitlementFor(orgID)
+	if err != nil {
+		return submodel.FreeEntitlement()
+	}
+	return ent
+}
 
 // SetEnqueuer wires River job insertion (confirmation emails).
 func (s *OrderService) SetEnqueuer(e jobs.Enqueuer) { s.enqueuer = e }
@@ -103,6 +138,29 @@ func (s *OrderService) emit(tx *gorm.DB, e auditsvc.Entry) error {
 // never fail the order when the event lookup hiccups — callers decide).
 func (s *OrderService) orgOf(eventID uuid.UUID) (uuid.UUID, error) {
 	return s.events.OrgOf(eventID)
+}
+
+// checkAttendeeCapacity enforces the tier's per-event attendee cap as
+// buyer-facing fullness (409, never billing state). Skipped when the
+// roster counter is unwired; org lookup failures skip best-effort (quota
+// bypass requires infra trouble, never user action).
+func (s *OrderService) checkAttendeeCapacity(eventID uuid.UUID, quantity int) error {
+	if s.counter == nil {
+		return nil
+	}
+	orgID, err := s.events.OrgOf(eventID)
+	if err != nil {
+		return nil
+	}
+	limit := int64(s.entitlement(orgID).Limits.MaxAttendeesPerEvent)
+	n, err := s.counter.CountRoster(eventID)
+	if err != nil {
+		return err
+	}
+	if n+int64(quantity) > limit {
+		return subservice.ErrEventAtCapacity
+	}
+	return nil
 }
 
 // CreateInput carries the claim request.
@@ -148,6 +206,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, eventID uuid.UUI
 	}
 	if tt.MaxPerOrder != nil && in.Quantity > *tt.MaxPerOrder {
 		return nil, ErrTooMany
+	}
+	if err := s.checkAttendeeCapacity(eventID, in.Quantity); err != nil {
+		return nil, err
 	}
 	now := time.Now()
 	o := &model.Order{

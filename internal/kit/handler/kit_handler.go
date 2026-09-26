@@ -11,6 +11,7 @@ import (
 	kitdto "github.com/nikhea/rallya/internal/kit/dto"
 	"github.com/nikhea/rallya/internal/kit/service"
 	orghandler "github.com/nikhea/rallya/internal/organization/handler"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // Handler adapts KitService to Gin. No business logic here.
@@ -390,6 +391,8 @@ func kitErrorStatus(err error) int {
 	case errors.Is(err, service.ErrQuantityExhausted),
 		errors.Is(err, service.ErrAlreadyCollected):
 		return http.StatusConflict
+	case errors.Is(err, subservice.ErrUpgradeRequired):
+		return http.StatusPaymentRequired
 	case errors.Is(err, service.ErrNotCheckedIn),
 		errors.Is(err, service.ErrQuantityBelowCollected),
 		errors.Is(err, service.ErrKitHasCollections),

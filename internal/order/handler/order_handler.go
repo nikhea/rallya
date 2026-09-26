@@ -12,6 +12,7 @@ import (
 	authhandler "github.com/nikhea/rallya/internal/auth/handler"
 	orderdto "github.com/nikhea/rallya/internal/order/dto"
 	"github.com/nikhea/rallya/internal/order/service"
+	subservice "github.com/nikhea/rallya/internal/subscription/service"
 )
 
 // Handler adapts OrderService to Gin. No business logic here.
@@ -154,7 +155,8 @@ func orderErrorStatus(err error) int {
 	case errors.Is(err, service.ErrForbidden):
 		return http.StatusForbidden
 	case errors.Is(err, service.ErrSoldOut),
-		errors.Is(err, service.ErrInvalidStatus):
+		errors.Is(err, service.ErrInvalidStatus),
+		errors.Is(err, subservice.ErrEventAtCapacity):
 		return http.StatusConflict
 	case errors.Is(err, service.ErrInvalidQty),
 		errors.Is(err, service.ErrTooMany):
