@@ -177,13 +177,13 @@ func (h *Handler) DeleteOrg(c *gin.Context) {
 // @Router			/orgs/{id}/members [get]
 func (h *Handler) ListMembers(c *gin.Context) {
 	uid, _ := authhandler.UserFromContext(c)
-	limit, offset := page(c)
+	page, perPage, limit, offset := page(c)
 	members, total, err := h.svc.ListMembers(uid, OrgRef(c), limit, offset)
 	if err != nil {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, orgdto.MembersPage{Items: members, Total: total})
+	c.JSON(http.StatusOK, orgdto.MembersPage{Items: members, Total: total, Page: page, PerPage: perPage})
 }
 
 // AddMember POST /api/v1/orgs/:id/members (ADMIN+, role within grantor's).
@@ -334,13 +334,13 @@ func (h *Handler) InviteMember(c *gin.Context) {
 // @Router			/orgs/{id}/invites [get]
 func (h *Handler) ListInvites(c *gin.Context) {
 	uid, _ := authhandler.UserFromContext(c)
-	limit, offset := page(c)
+	page, perPage, limit, offset := page(c)
 	invites, total, err := h.svc.ListInvites(uid, OrgRef(c), limit, offset)
 	if err != nil {
 		c.JSON(orgErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, orgdto.InvitesPage{Items: invites, Total: total})
+	c.JSON(http.StatusOK, orgdto.InvitesPage{Items: invites, Total: total, Page: page, PerPage: perPage})
 }
 
 // RevokeInvite DELETE /api/v1/orgs/:id/invites/:inviteId (ADMIN+).
@@ -502,13 +502,14 @@ func orDefault(s, def string) string {
 	return s
 }
 
-func page(c *gin.Context) (limit, offset int) {
-	limit = 20
+func page(c *gin.Context) (page, perPage, limit, offset int) {
+	page, perPage = 1, 20
 	if n, err := strconv.Atoi(c.Query("perPage")); err == nil && n >= 1 && n <= 100 {
-		limit = n
+		perPage = n
 	}
 	if n, err := strconv.Atoi(c.Query("page")); err == nil && n >= 1 {
-		offset = (n - 1) * limit
+		page = n
 	}
-	return limit, offset
+	limit, offset = perPage, (page-1)*perPage
+	return page, perPage, limit, offset
 }

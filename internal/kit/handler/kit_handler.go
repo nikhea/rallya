@@ -298,7 +298,7 @@ func (h *Handler) ListCollections(c *gin.Context) {
 	for i := range views {
 		items = append(items, toCollectionResponse(&views[i]))
 	}
-	c.JSON(http.StatusOK, kitdto.CollectionListResponse{Items: items, Total: total})
+	c.JSON(http.StatusOK, kitdto.CollectionListResponse{Items: items, Total: total, Page: 1, PerPage: len(items)})
 }
 
 // ListKitCollections GET /api/v1/orgs/:id/events/:eventId/kits/:kitId/collections (ADMIN+).
@@ -337,7 +337,7 @@ func (h *Handler) ListKitCollections(c *gin.Context) {
 	for i := range views {
 		items = append(items, toCollectionResponse(&views[i]))
 	}
-	c.JSON(http.StatusOK, kitdto.CollectionListResponse{Items: items, Total: total})
+	c.JSON(http.StatusOK, kitdto.CollectionListResponse{Items: items, Total: total, Page: 1, PerPage: len(items)})
 }
 
 // staffFromContext extracts org + staff identity (stealth org 404 first).

@@ -91,7 +91,7 @@ func (h *Handler) ListTickets(c *gin.Context) {
 		c.JSON(ticketErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, ticketdto.TicketsPage{Items: items, Total: int64(len(items))})
+	c.JSON(http.StatusOK, ticketdto.TicketsPage{Items: items, Total: int64(len(items)), Page: 1, PerPage: len(items)})
 }
 
 // GetTicket GET .../tickets/:ticketId (MEMBER+: ticket:read).
@@ -266,7 +266,7 @@ func (h *Handler) ListPublicTickets(c *gin.Context) {
 		c.JSON(ticketErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, ticketdto.TicketsPage{Items: items, Total: int64(len(items))})
+	c.JSON(http.StatusOK, ticketdto.TicketsPage{Items: items, Total: int64(len(items)), Page: 1, PerPage: len(items)})
 }
 
 // ---------- helpers ----------

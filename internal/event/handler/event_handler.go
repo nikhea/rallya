@@ -91,7 +91,7 @@ func (h *Handler) CreateEvent(c *gin.Context) {
 // @Failure		404		{object}	eventdto.ErrorAlias
 // @Router			/orgs/{id}/events [get]
 func (h *Handler) ListOrgEvents(c *gin.Context) {
-	limit, offset := page(c)
+	page, perPage, limit, offset := page(c)
 	var f eventdto.EventFilter
 	if err := c.ShouldBindQuery(&f); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -102,7 +102,7 @@ func (h *Handler) ListOrgEvents(c *gin.Context) {
 		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, eventdto.EventsPage{Items: items, Total: total})
+	c.JSON(http.StatusOK, eventdto.EventsPage{Items: items, Total: total, Page: page, PerPage: perPage})
 }
 
 // GetOrgEvent GET /api/v1/orgs/:id/events/:eventId (MEMBER+; drafts ok).
@@ -378,7 +378,7 @@ func (h *Handler) UploadGallery(c *gin.Context) {
 		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, eventdto.ImagesPage{Items: images, Total: int64(len(images))})
+	c.JSON(http.StatusCreated, eventdto.ImagesPage{Items: images, Total: int64(len(images)), Page: 1, PerPage: len(images)})
 }
 
 // ListImages GET /api/v1/orgs/:id/events/:eventId/images (MEMBER+: event:read).
@@ -401,7 +401,7 @@ func (h *Handler) ListImages(c *gin.Context) {
 		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, eventdto.ImagesPage{Items: images, Total: int64(len(images))})
+	c.JSON(http.StatusOK, eventdto.ImagesPage{Items: images, Total: int64(len(images)), Page: 1, PerPage: len(images)})
 }
 
 // ListPublicEvents GET /api/v1/events (published only, public).
@@ -422,7 +422,7 @@ func (h *Handler) ListImages(c *gin.Context) {
 // @Failure		400		{object}	eventdto.ErrorAlias
 // @Router			/events [get]
 func (h *Handler) ListPublicEvents(c *gin.Context) {
-	limit, offset := page(c)
+	page, perPage, limit, offset := page(c)
 	var f eventdto.EventFilter
 	if err := c.ShouldBindQuery(&f); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -433,7 +433,7 @@ func (h *Handler) ListPublicEvents(c *gin.Context) {
 		c.JSON(eventErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, eventdto.EventsPage{Items: items, Total: total})
+	c.JSON(http.StatusOK, eventdto.EventsPage{Items: items, Total: total, Page: page, PerPage: perPage})
 }
 
 // GetPublicEvent GET /api/v1/events/:id (published only, public).
@@ -502,15 +502,16 @@ func strVal(s *string) string {
 	return *s
 }
 
-func page(c *gin.Context) (limit, offset int) {
-	limit = 20
+func page(c *gin.Context) (page, perPage, limit, offset int) {
+	page, perPage = 1, 20
 	if n, err := strconv.Atoi(c.Query("perPage")); err == nil && n >= 1 && n <= 100 {
-		limit = n
+		perPage = n
 	}
 	if n, err := strconv.Atoi(c.Query("page")); err == nil && n >= 1 {
-		offset = (n - 1) * limit
+		page = n
 	}
-	return limit, offset
+	limit, offset = perPage, (page-1)*perPage
+	return page, perPage, limit, offset
 }
 
 func parseTime(s *string) (*time.Time, error) {

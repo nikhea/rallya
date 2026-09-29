@@ -131,8 +131,10 @@ type ApiKeyCreated struct {
 
 // ApiKeysPage lists keys with a total.
 type ApiKeysPage struct {
-	Items []ApiKey `json:"items"`
-	Total int64    `json:"total" example:"2"`
+	Items   []ApiKey `json:"items"`
+	Total   int64    `json:"total" example:"2"`
+	Page    int      `json:"page" example:"1"`
+	PerPage int      `json:"perPage" example:"20"`
 }
 
 // MemberNotify is one announcement recipient (internal read shape).
@@ -155,14 +157,18 @@ type Page struct {
 
 // MembersPage lists members with a total.
 type MembersPage struct {
-	Items []Member `json:"items"`
-	Total int64    `json:"total" example:"2"`
+	Items   []Member `json:"items"`
+	Total   int64    `json:"total" example:"2"`
+	Page    int      `json:"page" example:"1"`
+	PerPage int      `json:"perPage" example:"20"`
 }
 
 // InvitesPage lists pending invites with a total.
 type InvitesPage struct {
-	Items []Invite `json:"items"`
-	Total int64    `json:"total" example:"1"`
+	Items   []Invite `json:"items"`
+	Total   int64    `json:"total" example:"1"`
+	Page    int      `json:"page" example:"1"`
+	PerPage int      `json:"perPage" example:"20"`
 }
 
 // Message is a generic ack response.

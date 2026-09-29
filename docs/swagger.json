@@ -6310,6 +6310,14 @@
                         "$ref": "#/definitions/attendeedto.Attendee"
                     }
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
+                },
                 "total": {
                     "type": "integer",
                     "example": 2
@@ -6916,6 +6924,14 @@
                         "$ref": "#/definitions/eventdto.Event"
                     }
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
+                },
                 "total": {
                     "type": "integer",
                     "example": 2
@@ -6930,6 +6946,14 @@
                     "items": {
                         "$ref": "#/definitions/eventdto.EventImage"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
@@ -7013,6 +7037,14 @@
                     "items": {
                         "$ref": "#/definitions/kitdto.CollectionResponse"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
@@ -7229,6 +7261,14 @@
                         "$ref": "#/definitions/orderdto.Order"
                     }
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
+                },
                 "total": {
                     "type": "integer",
                     "example": 3
@@ -7374,6 +7414,14 @@
                     "items": {
                         "$ref": "#/definitions/orgdto.ApiKey"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
@@ -7557,6 +7605,14 @@
                         "$ref": "#/definitions/orgdto.Invite"
                     }
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
+                },
                 "total": {
                     "type": "integer",
                     "example": 1
@@ -7600,6 +7656,14 @@
                     "items": {
                         "$ref": "#/definitions/orgdto.Member"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
@@ -8033,6 +8097,14 @@
                     "items": {
                         "$ref": "#/definitions/ticketdto.TicketType"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",

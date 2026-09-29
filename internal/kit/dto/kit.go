@@ -54,8 +54,10 @@ type CollectionResponse struct {
 
 // CollectionListResponse pages handout records.
 type CollectionListResponse struct {
-	Items []CollectionResponse `json:"items"`
-	Total int64                `json:"total" example:"40"`
+	Items   []CollectionResponse `json:"items"`
+	Total   int64                `json:"total" example:"40"`
+	Page    int                  `json:"page" example:"1"`
+	PerPage int                  `json:"perPage" example:"20"`
 }
 
 // ErrorResponse is the standard error envelope.

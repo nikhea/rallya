@@ -252,7 +252,7 @@ func (h *Handler) ListUserOrders(c *gin.Context) {
 		c.JSON(adminErrorStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, orderdto.OrdersPage{Items: orders, Total: total})
+	c.JSON(http.StatusOK, orderdto.OrdersPage{Items: orders, Total: total, Page: page, PerPage: perPage})
 }
 
 // ReseedOrgPolicies POST /api/v1/admin/orgs/:id/policies/reseed (superadmin).
