@@ -22,8 +22,10 @@ type Order struct {
 
 // OrdersPage lists a user's orders.
 type OrdersPage struct {
-	Items []Order `json:"items"`
-	Total int64   `json:"total" example:"3"`
+	Items   []Order `json:"items"`
+	Total   int64   `json:"total" example:"3"`
+	Page    int     `json:"page" example:"1"`
+	PerPage int     `json:"perPage" example:"20"`
 }
 
 // Message is a generic ack response.

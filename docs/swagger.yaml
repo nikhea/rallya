@@ -225,6 +225,12 @@ definitions:
         items:
           $ref: '#/definitions/attendeedto.Attendee'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 2
         type: integer
@@ -657,6 +663,12 @@ definitions:
         items:
           $ref: '#/definitions/eventdto.Event'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 2
         type: integer
@@ -667,6 +679,12 @@ definitions:
         items:
           $ref: '#/definitions/eventdto.EventImage'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 3
         type: integer
@@ -726,6 +744,12 @@ definitions:
         items:
           $ref: '#/definitions/kitdto.CollectionResponse'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 40
         type: integer
@@ -880,6 +904,12 @@ definitions:
         items:
           $ref: '#/definitions/orderdto.Order'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 3
         type: integer
@@ -984,6 +1014,12 @@ definitions:
         items:
           $ref: '#/definitions/orgdto.ApiKey'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 2
         type: integer
@@ -1113,6 +1149,12 @@ definitions:
         items:
           $ref: '#/definitions/orgdto.Invite'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 1
         type: integer
@@ -1144,6 +1186,12 @@ definitions:
         items:
           $ref: '#/definitions/orgdto.Member'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 2
         type: integer
@@ -1452,6 +1500,12 @@ definitions:
         items:
           $ref: '#/definitions/ticketdto.TicketType'
         type: array
+      page:
+        example: 1
+        type: integer
+      perPage:
+        example: 20
+        type: integer
       total:
         example: 2
         type: integer

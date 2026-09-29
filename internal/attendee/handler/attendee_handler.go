@@ -87,13 +87,13 @@ func (h *Handler) ListRoster(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
 		return
 	}
-	limit, offset := page(c)
+	page, perPage, limit, offset := page(c)
 	items, total, err := h.svc.ListEventRoster(eventID, c.Query("q"), limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "list failed"})
 		return
 	}
-	c.JSON(http.StatusOK, attendeedto.AttendeesPage{Items: items, Total: total})
+	c.JSON(http.StatusOK, attendeedto.AttendeesPage{Items: items, Total: total, Page: page, PerPage: perPage})
 }
 
 // CorrectAttendee PATCH .../attendees/:attendeeId (ADMIN+).
@@ -157,13 +157,13 @@ func (h *Handler) CorrectAttendee(c *gin.Context) {
 // @Router			/attendees/mine [get]
 func (h *Handler) ListMine(c *gin.Context) {
 	uid, _ := authhandler.UserFromContext(c)
-	limit, offset := page(c)
+	page, perPage, limit, offset := page(c)
 	items, total, err := h.svc.ListMine(uid, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "list failed"})
 		return
 	}
-	c.JSON(http.StatusOK, attendeedto.AttendeesPage{Items: items, Total: total})
+	c.JSON(http.StatusOK, attendeedto.AttendeesPage{Items: items, Total: total, Page: page, PerPage: perPage})
 }
 
 // GetMine GET /api/v1/attendees/:id (owner).
@@ -237,13 +237,14 @@ func attendeeErrorStatus(err error) int {
 	}
 }
 
-func page(c *gin.Context) (limit, offset int) {
-	limit = 20
+func page(c *gin.Context) (page, perPage, limit, offset int) {
+	page, perPage = 1, 20
 	if n, err := strconv.Atoi(c.Query("perPage")); err == nil && n >= 1 && n <= 100 {
-		limit = n
+		perPage = n
 	}
 	if n, err := strconv.Atoi(c.Query("page")); err == nil && n >= 1 {
-		offset = (n - 1) * limit
+		page = n
 	}
-	return limit, offset
+	limit, offset = perPage, (page-1)*perPage
+	return page, perPage, limit, offset
 }

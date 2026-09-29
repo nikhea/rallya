@@ -47,8 +47,10 @@ type TicketType struct {
 
 // TicketsPage lists types.
 type TicketsPage struct {
-	Items []TicketType `json:"items"`
-	Total int64        `json:"total" example:"2"`
+	Items   []TicketType `json:"items"`
+	Total   int64        `json:"total" example:"2"`
+	Page    int          `json:"page" example:"1"`
+	PerPage int          `json:"perPage" example:"20"`
 }
 
 // Message is a generic ack response.

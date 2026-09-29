@@ -85,7 +85,7 @@ func (h *Handler) ListApiKeys(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	limit, offset := page(c)
+	page, perPage, limit, offset := page(c)
 	keys, total, err := h.svc.ListApiKeys(uid, OrgRef(c), limit, offset)
 	if err != nil {
 		c.JSON(apiKeyErrorStatus(err), gin.H{"error": err.Error()})
@@ -94,7 +94,7 @@ func (h *Handler) ListApiKeys(c *gin.Context) {
 	if keys == nil {
 		keys = []orgdto.ApiKey{}
 	}
-	c.JSON(http.StatusOK, gin.H{"items": keys, "total": total})
+	c.JSON(http.StatusOK, orgdto.ApiKeysPage{Items: keys, Total: total, Page: page, PerPage: perPage})
 }
 
 // RevokeApiKey DELETE /api/v1/orgs/:id/api-keys/:keyId (ADMIN+, idempotent).

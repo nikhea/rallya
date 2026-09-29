@@ -16,9 +16,10 @@ Fulfillment runs ONLY in the webhook handler.
   recorded at creation; priced-only gate before any Stripe call.
 - Seams: `OrderStore` + `CheckoutProvider` interfaces (fakes in tests).
   Payments never touches order tables; never log secrets.
-- Test webhook payloads must carry the SDK-pinned `api_version`
-  (`2026-08-26.dahlia`) or `ConstructEvent` rejects them — real Stripe
-  events always include it.
+- Webhook verification tolerates `api_version` mismatch
+  (`IgnoreAPIVersionMismatch`): live events carry the account's version
+  (e.g. `2022-11-15`), which may lag the SDK pin. Tests cover both the
+  pinned and a legacy version.
 
 ## Tests
 

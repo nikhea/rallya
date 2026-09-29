@@ -177,7 +177,12 @@ func (s *SubscriptionService) StartCheckout(ctx context.Context, userID, orgID u
 	url, sessionID, err = s.billing.CreateSubscriptionCheckout(ctx, CheckoutArgs{
 		CustomerID: customerID, PriceID: priceID, OrgID: orgID, Plan: plan,
 		SuccessURL: successURL, CancelURL: cancelURL,
-		IdempotencyKey: "sub-" + orgID.String() + "-" + string(plan),
+		// Unique per attempt: Checkout Sessions are single-use, so a
+		// deterministic key would replay dead sessions for 24h. Accidental
+		// double-submits are still safe: parallel attempts surface as two
+		// open sessions (unpaid ones expire), and buying while actively
+		// subscribed is rejected above with ErrAlreadySubscribed.
+		IdempotencyKey: "sub-" + orgID.String() + "-" + string(plan) + "-" + uuid.NewString(),
 	})
 	if err != nil {
 		return "", "", err

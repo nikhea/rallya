@@ -81,13 +81,13 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 // @Router			/orders/mine [get]
 func (h *Handler) ListMyOrders(c *gin.Context) {
 	uid, _ := authhandler.UserFromContext(c)
-	limit, offset := page(c)
+	page, perPage, limit, offset := page(c)
 	items, total, err := h.svc.ListMyOrders(uid, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "list failed"})
 		return
 	}
-	c.JSON(http.StatusOK, orderdto.OrdersPage{Items: items, Total: total})
+	c.JSON(http.StatusOK, orderdto.OrdersPage{Items: items, Total: total, Page: page, PerPage: perPage})
 }
 
 // GetOrder GET /api/v1/orders/:id (owner or org ADMIN+).
@@ -173,13 +173,14 @@ func strVal(s *string) string {
 	return *s
 }
 
-func page(c *gin.Context) (limit, offset int) {
-	limit = 20
+func page(c *gin.Context) (page, perPage, limit, offset int) {
+	page, perPage = 1, 20
 	if n, err := strconv.Atoi(c.Query("perPage")); err == nil && n >= 1 && n <= 100 {
-		limit = n
+		perPage = n
 	}
 	if n, err := strconv.Atoi(c.Query("page")); err == nil && n >= 1 {
-		offset = (n - 1) * limit
+		page = n
 	}
-	return limit, offset
+	limit, offset = perPage, (page-1)*perPage
+	return page, perPage, limit, offset
 }

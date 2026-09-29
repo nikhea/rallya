@@ -54,8 +54,10 @@ type Event struct {
 
 // EventsPage is a paginated envelope.
 type EventsPage struct {
-	Items []Event `json:"items"`
-	Total int64   `json:"total" example:"2"`
+	Items   []Event `json:"items"`
+	Total   int64   `json:"total" example:"2"`
+	Page    int     `json:"page" example:"1"`
+	PerPage int     `json:"perPage" example:"20"`
 }
 
 // EventImage is one gallery file with provider metadata.
@@ -72,8 +74,10 @@ type EventImage struct {
 
 // ImagesPage lists gallery images.
 type ImagesPage struct {
-	Items []EventImage `json:"items"`
-	Total int64        `json:"total" example:"3"`
+	Items   []EventImage `json:"items"`
+	Total   int64        `json:"total" example:"3"`
+	Page    int          `json:"page" example:"1"`
+	PerPage int          `json:"perPage" example:"20"`
 }
 
 // Message is a generic ack response.

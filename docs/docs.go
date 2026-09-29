@@ -6316,6 +6316,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/attendeedto.Attendee"
                     }
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
+                },
                 "total": {
                     "type": "integer",
                     "example": 2
@@ -6922,6 +6930,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/eventdto.Event"
                     }
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
+                },
                 "total": {
                     "type": "integer",
                     "example": 2
@@ -6936,6 +6952,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/eventdto.EventImage"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
@@ -7019,6 +7043,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/kitdto.CollectionResponse"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
@@ -7235,6 +7267,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/orderdto.Order"
                     }
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
+                },
                 "total": {
                     "type": "integer",
                     "example": 3
@@ -7380,6 +7420,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/orgdto.ApiKey"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
@@ -7563,6 +7611,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/orgdto.Invite"
                     }
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
+                },
                 "total": {
                     "type": "integer",
                     "example": 1
@@ -7606,6 +7662,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/orgdto.Member"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
@@ -8039,6 +8103,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/ticketdto.TicketType"
                     }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "perPage": {
+                    "type": "integer",
+                    "example": 20
                 },
                 "total": {
                     "type": "integer",
