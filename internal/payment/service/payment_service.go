@@ -108,7 +108,12 @@ func (s *PaymentService) HandleWebhook(payload []byte, sigHeader string) error {
 	if secret == "" {
 		return &FulfillError{"webhook secret unconfigured"}
 	}
-	evt, err := stripewebhook.ConstructEvent(payload, sigHeader, secret)
+	// IgnoreAPIVersionMismatch: events carry the account's API version
+	// (e.g. 2022-11-15), which may lag the SDK pin. The fields we read
+	// are stable across versions; rejecting on mismatch 400s all live
+	// traffic from such accounts.
+	evt, err := stripewebhook.ConstructEventWithOptions(payload, sigHeader, secret,
+		stripewebhook.ConstructEventOptions{IgnoreAPIVersionMismatch: true})
 	if err != nil {
 		return &FulfillError{"bad signature: " + err.Error()}
 	}

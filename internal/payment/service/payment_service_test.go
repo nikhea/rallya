@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -213,6 +214,12 @@ func TestWebhookFulfillment(t *testing.T) {
 	// Redelivery idempotent.
 	if err := svc.HandleWebhook(paid, signPayload(t, paid, testWebhookSecret)); err != nil {
 		t.Fatalf("redelivery: %v", err)
+	}
+	// Older account API versions (e.g. CLI-forwarded 2022-11-15 events)
+	// must not fail verification.
+	legacy := bytes.Replace(paid, []byte("2026-08-26.dahlia"), []byte("2022-11-15"), 1)
+	if err := svc.HandleWebhook(legacy, signPayload(t, legacy, testWebhookSecret)); err != nil {
+		t.Fatalf("legacy api_version should verify, got %v", err)
 	}
 	// Unknown order acks (no retry storm) — still nil error path via FulfillError.
 	other := sessionPayload(t, uuid.New().String(), "paid")
